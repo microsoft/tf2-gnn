@@ -1,4 +1,4 @@
-# Test and publish TF2-GNN package
+# Test TF2-GNN package
 trigger:
   branches:
     include:
@@ -21,12 +21,12 @@ jobs:
       versionSpec: '3.6'
     displayName: 'Use Python 3.6'
 
-  - script: python -m pip install --upgrade pip && pip install -r requirements.txt
+  - script: python -m pip install --upgrade pip && pip install numpy docopt dpu-utils tensorflow azureml-core
     displayName: 'Install dependencies'
 
   - script: |
       pip install pytest
-      pytest ./tf2_gnn/ --doctest-modules --junitxml=junit/test-results.xml
+      pytest ./tf2_gnn/ --doctest-modules --doctest-ignore-import-errors --junitxml=junit/test-results.xml
     displayName: 'Run pytest'
 
   - task: PublishTestResults@2
@@ -35,3 +35,15 @@ jobs:
       testRunTitle: 'GNN tests'
     condition: succeededOrFailed()
     displayName: 'Publish test results'
+
+  - task: ComponentGovernanceComponentDetection@0
+    inputs:
+      scanType: 'Register'
+      verbosity: 'Verbose'
+      alertWarningLevel: 'High'
+
+  - task: PublishSecurityAnalysisLogs@3
+    inputs:
+      ArtifactName: 'CodeAnalysisLogs'
+      ArtifactType: 'Container'
+
