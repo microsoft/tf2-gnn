@@ -1,0 +1,4 @@
+from .graph_task_model import GraphTaskModel
+from .node_multiclass_task import NodeMulticlassTask
+from .graph_regression_task import GraphRegressionTask
+from .graph_binary_classification_task import GraphBinaryClassificationTask

@@ -1,0 +1,22 @@
+{
+    "task_params": {
+        "max_nodes_per_batch": 50000
+    },
+    "model_params": {
+        "gnn_residual_every_num_layers": 2,
+        "gnn_num_layers": 8,
+        "gnn_initial_node_representation_activation": "tanh",
+        "gnn_dense_intermediate_layer_activation": "tanh",
+        "gnn_layer_input_dropout_rate": 0.0,
+        "gnn_message_activation_function": "leaky_relu",
+        "learning_rate_decay": 0.98,
+        "momentum": 0.85,
+        "gnn_aggregation_function": "sum",
+        "gnn_dense_every_num_layers": 32,
+        "learning_rate": 0.0005720408870458782,
+        "gnn_use_inter_layer_layernorm": true,
+        "gnn_hidden_dim": 128,
+        "gradient_clip_value": 1.0,
+        "optimiser": "RMSProp"
+    }
+}

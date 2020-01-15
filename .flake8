@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 100
+ignore =
+    # W605: invalid escape sequence -- triggered by pseudo-LaTeX in comments
+    W605,
+    # E203: whitespace before ':'
+    E203,

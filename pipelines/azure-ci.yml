@@ -1,0 +1,37 @@
+# Test and publish TF2-GNN package
+trigger:
+  branches:
+    include:
+      - '*'  # must quote since "*" is a YAML reserved character; we want a string
+  paths:
+    include:
+      - tf2_gnn/*
+      - setup.py
+      - build/*.yml
+
+jobs:
+- job: 'Test'
+
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.6'
+    displayName: 'Use Python 3.6'
+
+  - script: python -m pip install --upgrade pip && pip install -r requirements.txt
+    displayName: 'Install dependencies'
+
+  - script: |
+      pip install pytest
+      pytest ./tf2_gnn/ --doctest-modules --junitxml=junit/test-results.xml
+    displayName: 'Run pytest'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFiles: 'junit/test-results.xml'
+      testRunTitle: 'GNN tests'
+    condition: succeededOrFailed()
+    displayName: 'Publish test results'
