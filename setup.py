@@ -9,8 +9,8 @@ setuptools.setup(
     description="TensorFlow 2.0 implementation of Graph Neural Networks.",
     python_requires=">=3.6",
     install_requires=["numpy", "docopt", "dpu-utils>=0.1.36"],
-    packages=setuptools.find_packages(where='./'),
-    package_dir={'':'./'},
+    packages=setuptools.find_packages(where='.'),
+    package_dir={'':'.'},
     package_data={'': ['default_hypers/*.json']},
     entry_points={
         'console_scripts': [
