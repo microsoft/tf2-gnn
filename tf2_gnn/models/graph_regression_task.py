@@ -83,10 +83,10 @@ class GraphRegressionTask(GraphTaskModel):
         }
 
     def compute_epoch_metrics(self, task_results: List[Any]) -> Tuple[float, str]:
-        total_num_graphs = np.sum(
+        total_num_graphs = sum(
             batch_task_result["num_graphs"] for batch_task_result in task_results
         )
-        total_absolute_error = np.sum(
+        total_absolute_error = sum(
             batch_task_result["batch_absolute_error"] for batch_task_result in task_results
         )
         epoch_mae = total_absolute_error / total_num_graphs
