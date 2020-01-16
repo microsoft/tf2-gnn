@@ -111,8 +111,6 @@ def get_model_and_dataset(
             with open(task_model_default_hypers_file, "rt") as f:
                 default_task_model_hypers = json.load(f)
         else:
-            import pdb
-            pdb.set_trace()
             print("File not found, using global defaults.")
 
     dataset = get_dataset(
