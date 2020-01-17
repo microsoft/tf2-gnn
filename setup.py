@@ -5,7 +5,7 @@ import setuptools
 
 setuptools.setup(
     name="tf2_gnn",
-    version="0.9.4",
+    version="0.9.5",
     description="TensorFlow 2.0 implementation of Graph Neural Networks.",
     python_requires=">=3.6",
     install_requires=["numpy", "docopt", "dpu-utils>=0.1.36"],
