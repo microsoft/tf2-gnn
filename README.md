@@ -49,7 +49,6 @@ The implementation illustrates how to handle the case of inductive graph
 learning with graph-level predictions.
 You can call this by running `python train.py MODEL QM9 data/qm9`.
 
-
 # References
 
 #### Brockschmidt, 2019
