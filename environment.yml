@@ -15,7 +15,8 @@ dependencies:
   - psutil
   - pip:
     - docopt
-    - dpu-utils>=0.1.36
+    - dpu-utils>=0.2.7
+    - h5py
     - matplotlib
     - azureml-core
     - azureml-dataprep
