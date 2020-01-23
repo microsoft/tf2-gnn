@@ -32,7 +32,7 @@ def save_model(save_file, model: GraphTaskModel, dataset: GraphDataset) -> None:
     }
     with open(save_file, "wb") as out_file:
         pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
-    model.save_weights(save_file, save_format="tf")
+    model.save_weights(save_file, save_format="h5")
     print(f"   (Stored model to {save_file})")
 
 
@@ -243,7 +243,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
 
     # If needed, load weights for model:
     if args.load_saved_model:
-        model.load_weights(args.load_saved_model)
+        model.load_weights(args.load_saved_model, by_name=True)
 
     if args.azureml_logging:
         from azureml.core.run import Run
