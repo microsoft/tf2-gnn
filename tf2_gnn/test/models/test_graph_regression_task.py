@@ -1,14 +1,24 @@
 """Tests for the GraphRegressionTask class."""
 import os
 import random
+import warnings
+from typing import List
 
-import pytest
 import numpy as np
+import pytest
 import tensorflow as tf
 from dpu_utils.utils import RichPath
 
-from tf2_gnn.data import GraphDataset, JsonLGraphDataset, DataFold
+from tf2_gnn.data import DataFold, GraphDataset, JsonLGraphDataset
 from tf2_gnn.models import GraphRegressionTask
+
+
+# Turn off warnings in TF model construction, which are expected noise:
+def ignore_warn(*args, **kwargs):
+    pass
+
+
+original_warn, warnings.warn = warnings.warn, ignore_warn
 
 
 @pytest.fixture
@@ -23,16 +33,67 @@ def jsonl_dataset():
     return dataset
 
 
+@pytest.fixture
+def weights_file():
+    save_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "tmp")
+    os.mkdir(save_dir)
+    save_path = os.path.join(save_dir, "weights.h5")
+    yield save_path
+    # Tear down:
+    if os.path.exists(save_path):
+        os.remove(save_path)
+    if os.path.exists(save_dir):
+        os.rmdir(save_dir)
+
+
+def test_weights_save_without_error(jsonl_dataset: GraphDataset, weights_file: str):
+    model = GraphRegressionTask(
+        GraphRegressionTask.get_default_hyperparameters(),
+        num_edge_types=jsonl_dataset.num_edge_types,
+    )
+    data_description = jsonl_dataset.get_batch_tf_data_description()
+    model.build(data_description.batch_features_shapes)
+
+    model.save_weights(weights_file, save_format="h5")
+
+
+def test_weights_load_from_file(jsonl_dataset: GraphDataset, weights_file: str):
+    # Clear the Keras session so that unique naming does not mess up weight loading.
+    tf.keras.backend.clear_session()
+
+    # Build a model and save its (random) weights.
+    data_description = jsonl_dataset.get_batch_tf_data_description()
+    model_1 = GraphRegressionTask(
+        GraphRegressionTask.get_default_hyperparameters(),
+        num_edge_types=jsonl_dataset.num_edge_types,
+    )
+    model_1.build(data_description.batch_features_shapes)
+    model_1.save_weights(weights_file, save_format="h5")
+
+    weights_1: List[tf.Variable] = [x.numpy() for x in model_1.trainable_variables]
+
+    # Clear the Keras session so that unique naming does not mess up weight loading.
+    del model_1
+    tf.keras.backend.clear_session()
+
+    # Build a second model and load the first set of weights into it.
+    model_2 = GraphRegressionTask(
+        GraphRegressionTask.get_default_hyperparameters(),
+        num_edge_types=jsonl_dataset.num_edge_types,
+    )
+    model_2.build(data_description.batch_features_shapes)
+
+    model_2.load_weights(weights_file, by_name=True)
+    weights_2: List[np.ndarray] = [x.numpy() for x in model_2.trainable_variables]
+
+    for w_1, w_2 in zip(weights_1, weights_2):
+        np.testing.assert_array_equal(w_1, w_2)
+
+
 def test_train_improvement(jsonl_dataset: GraphDataset):
     random.seed(0)
     np.random.seed(0)
     tf.random.set_seed(0)
-
-    # Turn off warnings in TF model construction, which are expected noise:
-    def ignore_warn(*args, **kwargs):
-        pass
-    import warnings
-    original_warn, warnings.warn = warnings.warn, ignore_warn
 
     model = GraphRegressionTask(
         GraphRegressionTask.get_default_hyperparameters(),
