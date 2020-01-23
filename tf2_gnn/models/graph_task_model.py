@@ -23,8 +23,6 @@ class GraphTaskModel(tf.keras.Model):
         return params
 
     def __init__(self, params: Dict[str, Any], num_edge_types: int, name: str = None):
-        if name is None:
-            name = "GraphTaskModel"
         super().__init__(name=name)
         self._params = params
         self._num_edge_types = num_edge_types
