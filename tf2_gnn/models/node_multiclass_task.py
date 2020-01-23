@@ -30,8 +30,8 @@ class NodeMulticlassTask(GraphTaskModel):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], num_edge_types: int):
-        super().__init__(params, num_edge_types=num_edge_types)
+    def __init__(self, params: Dict[str, Any], num_edge_types: int, name: str = None):
+        super().__init__(params, num_edge_types=num_edge_types, name=name)
         self._num_labels = params["num_node_labels"]
 
     def build(self, input_shapes):

@@ -21,8 +21,8 @@ class GraphRegressionTask(GraphTaskModel):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], num_edge_types):
-        super().__init__(params, num_edge_types)
+    def __init__(self, params: Dict[str, Any], num_edge_types: int, name: str = None):
+        super().__init__(params, num_edge_types=num_edge_types, name=name)
         self._node_to_graph_aggregation = None
 
     def build(self, input_shapes):
