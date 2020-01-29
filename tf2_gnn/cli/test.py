@@ -17,14 +17,11 @@ from tf2_gnn.utils.training_utils import make_run_id, get_model_and_dataset
 
 def test(
     model: GraphTaskModel,
-    model_to_load: str,
     dataset: GraphDataset,
     log_fun: Callable[[str], None],
     quiet: bool = False,
 ):
     log_fun("== Running on test dataset")
-    log_fun(f"Restoring best model state from {model_to_load}.")
-    model.load_weights(model_to_load)
     test_data = dataset.get_tensorflow_dataset(DataFold.TEST)
     _, _, test_results = model.run_one_epoch(test_data, training=False, quiet=quiet)
     test_metric, test_metric_string = model.compute_epoch_metrics(test_results)

@@ -6,9 +6,11 @@ import sys
 import time
 from typing import Dict, Any, Optional, Callable, Set, Type
 
+import h5py
 import numpy as np
 import tensorflow as tf
 from dpu_utils.utils import run_and_debug, RichPath
+from tensorflow.python.keras import backend as K
 
 from tf2_gnn import DataFold, GraphDataset, GraphTaskModel, get_known_message_passing_classes
 from .task_utils import get_known_tasks, task_name_to_dataset_class, task_name_to_model_class
@@ -31,8 +33,53 @@ def save_model(save_file, model: GraphTaskModel, dataset: GraphDataset) -> None:
     }
     with open(save_file, "wb") as out_file:
         pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
-    model.save_weights(save_file, save_format="h5")
-    print(f"   (Stored model to {save_file})")
+    hdf5_file = save_file[:-3] + "hdf5"
+    model.save_weights(hdf5_file, save_format="h5")
+    print(f"   (Stored model metadata to {save_file} and weights to {hdf5_file})")
+
+
+def load_weights_verbosely(model_weights_file: str, model: GraphTaskModel):
+    var_name_to_variable = {}
+    var_names_unique = True
+    for var in model.variables:
+        if var.name in var_name_to_variable:
+            print(f"E: More than one variable with name {var.name} used in model. Please use appropriate name_scopes!")
+            var_names_unique = False
+        else:
+            var_name_to_variable[var.name] = var
+    if not var_names_unique:
+        raise ValueError("Model variables have duplicate names, making weight restoring impossible.")
+
+    var_name_to_weights = {}
+    def hdf5_item_visitor(name, item):
+        if not isinstance(item, h5py.Dataset):
+            return
+        if name in var_name_to_weights:
+            print(f"E: More than one variable with name {name} used in hdf5 file. Please use appropriate name_scopes!")
+            var_names_unique = False
+        else:
+            var_name_to_weights[name] = np.array(item)
+
+    with h5py.File(model_weights_file, mode='r') as data_hdf5:
+        # For some reason, the first layer of attributes is auto-generated names instead of actual names:
+        for model_sublayer in data_hdf5.values():
+            model_sublayer.visititems(hdf5_item_visitor)
+    if not var_names_unique:
+        raise ValueError("Stored weights have duplicate names, making weight restoring impossible.")
+
+    tfvar_weight_tuples = []
+    for var_name, tfvar in var_name_to_variable.items():
+        saved_weight = var_name_to_weights.get(var_name)
+        if saved_weight is None:
+            print(f"I: Weights for {var_name} freshly initialised.")
+        else:
+            tfvar_weight_tuples.append((tfvar, saved_weight))
+
+    for var_name in var_name_to_weights.keys():
+        if var_name not in var_name_to_variable:
+            print(f"I: Model does not use saved weights for {var_name}.")
+
+    K.batch_set_value(tfvar_weight_tuples)
 
 
 def get_dataset(
@@ -139,6 +186,15 @@ def get_model_and_dataset(
     print(f"Loading data from {data_path}.")
     dataset.load_data(data_path, folds_to_load)
 
+    data_description = dataset.get_batch_tf_data_description()
+    model.build(data_description.batch_features_shapes)
+
+    # If needed, load weights for model:
+    if trained_model_file:
+        trained_model_weights_file = trained_model_file[:-3] + "hdf5"
+        print(f"Restoring model weights from {trained_model_weights_file}.")
+        load_weights_verbosely(trained_model_weights_file, model)
+
     return dataset, model
 
 
@@ -212,6 +268,18 @@ def train(
     return save_file
 
 def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str] = {}) -> None:
+    # Get the housekeeping going and start logging:
+    os.makedirs(args.save_dir, exist_ok=True)
+    run_id = make_run_id(args.model, args.task)
+    log_file = os.path.join(args.save_dir, f"{run_id}.log")
+    def log(msg):
+        log_line(log_file, msg)
+
+    log(f"Setting random seed {args.random_seed}.")
+    random.seed(args.random_seed)
+    np.random.seed(args.random_seed)
+    tf.random.set_seed(args.random_seed)
+
     data_path = RichPath.create(args.data_path, args.azure_info)
     dataset, model = get_model_and_dataset(
         msg_passing_implementation=args.model,
@@ -223,29 +291,8 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
         hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
         folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
     )
-
-    # Get the housekeeping going and start logging:
-    os.makedirs(args.save_dir, exist_ok=True)
-    run_id = make_run_id(args.model, args.task)
-    log_file = os.path.join(args.save_dir, f"{run_id}.log")
-
-    def log(msg):
-        log_line(log_file, msg)
-
-    log(f"Setting random seed {args.random_seed}.")
-    random.seed(args.random_seed)
-    np.random.seed(args.random_seed)
-    tf.random.set_seed(args.random_seed)
     log(f"Dataset parameters: {json.dumps(dict(dataset._params))}")
     log(f"Model parameters: {json.dumps(dict(model._params))}")
-
-    # Build & train model:
-    data_description = dataset.get_batch_tf_data_description()
-    model.build(data_description.batch_features_shapes)
-
-    # If needed, load weights for model:
-    if args.load_saved_model:
-        model.load_weights(args.load_saved_model, by_name=True)
 
     if args.azureml_logging:
         from azureml.core.run import Run
@@ -272,7 +319,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
         log(f"Loading data from {data_path}.")
         dataset.load_data(data_path, {DataFold.TEST})
         log(f"Restoring best model state from {trained_model_path}.")
-        model.load_weights(trained_model_path)
+        load_weights_verbosely(trained_model_path[:-3] + "hdf5", model)
         test_data = dataset.get_tensorflow_dataset(DataFold.TEST)
         _, _, test_results = model.run_one_epoch(test_data, training=False, quiet=args.quiet)
         test_metric, test_metric_string = model.compute_epoch_metrics(test_results)
