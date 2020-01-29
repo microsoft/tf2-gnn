@@ -179,16 +179,17 @@ class GraphTaskModel(tf.keras.Model):
                 self._optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
             if not quiet:
-                average_loss = (total_loss / float(step + 1)).numpy()
+                epoch_graph_average_loss = (total_loss / float(total_num_graphs)).numpy()
+                batch_graph_average_loss = task_metrics["loss"] / float(batch_features["num_graphs_in_batch"])
                 steps_per_second = step / (time.time() - epoch_time_start)
                 print(
                     f"   Step: {step:4d}"
-                    f"  |  Epoch average loss = {average_loss:.5f}"
-                    f"  |  Batch loss = {task_metrics['loss']:.5f}"
+                    f"  |  Epoch graph avg. loss = {epoch_graph_average_loss:.5f}"
+                    f"  |  Batch graph avg. loss = {batch_graph_average_loss:.5f}"
                     f"  |  Steps per sec = {steps_per_second:.5f}",
                     end="\r"
                 )
         if not quiet:
             print("\r\x1b[K", end="")
         total_time = time.time() - epoch_time_start
-        return total_loss / float(step + 1), float(total_num_graphs) / total_time, task_results
+        return total_loss / float(total_num_graphs), float(total_num_graphs) / total_time, task_results
