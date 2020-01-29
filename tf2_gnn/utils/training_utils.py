@@ -10,7 +10,6 @@ import numpy as np
 import tensorflow as tf
 from dpu_utils.utils import run_and_debug, RichPath
 
-from ..azure_ml.utils import override_model_params_with_hyperdrive_params
 from tf2_gnn import DataFold, GraphDataset, GraphTaskModel, get_known_message_passing_classes
 from .task_utils import get_known_tasks, task_name_to_dataset_class, task_name_to_model_class
 
@@ -73,7 +72,10 @@ def get_model(
     else:
         model_params = loaded_model_hyperparameters
     model_params.update(cli_model_hyperparameter_overrides)
-    override_model_params_with_hyperdrive_params(model_params, hyperdrive_hyperparameter_overrides)
+    if len(hyperdrive_hyperparameter_overrides) > 0:
+        # Only require azure_ml if needed:
+        from ..azure_ml.utils import override_model_params_with_hyperdrive_params
+        override_model_params_with_hyperdrive_params(model_params, hyperdrive_hyperparameter_overrides)
     return model_cls(model_params, num_edge_types=dataset.num_edge_types)
 
 
