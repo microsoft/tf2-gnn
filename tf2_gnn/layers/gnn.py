@@ -116,8 +116,8 @@ class GNN(tf.keras.layers.Layer):
 
         # Layer member variables. To be filled in in the `build` method.
         self._initial_projection_layer: tf.keras.layers.Layer = None
-        self._inter_layer_layernorm: tf.keras.layers.Layer = None
         self._mp_layers: List[MessagePassing] = []
+        self._inter_layer_layernorms: List[tf.keras.layers.Layer] = []
         self._dense_layers: Dict[str, tf.keras.layers.Layer] = {}
         self._global_exchange_layers: Dict[str, GraphGlobalExchange] = {}
 
@@ -137,58 +137,74 @@ class GNN(tf.keras.layers.Layer):
         adjacency_list_shapes = tensor_shapes.adjacency_lists
         embedded_shape = tf.TensorShape((None, self._hidden_dim))
 
-        # Then we construct the layers themselves:
-        with tf.name_scope("gnn_initial_node_projection"):
-            self._initial_projection_layer = tf.keras.layers.Dense(
-                units=self._hidden_dim,
-                use_bias=False,
-                activation=self._initial_node_representation_activation_fn,
-            )
-            self._initial_projection_layer.build(variable_node_features_shape)
+        with tf.name_scope(f"{self._message_passing_class.__name__}_GNN"):
+            # Then we construct the layers themselves:
+            with tf.name_scope("gnn_initial_node_projection"):
+                self._initial_projection_layer = tf.keras.layers.Dense(
+                    units=self._hidden_dim,
+                    use_bias=False,
+                    activation=self._initial_node_representation_activation_fn,
+                )
+                self._initial_projection_layer.build(variable_node_features_shape)
 
-        # Construct the graph message passing layers.
-        for layer_idx in range(self._num_layers):
-            with tf.name_scope(f"{self._message_passing_class.__name__}_Layer_{layer_idx}"):
-                self._mp_layers.append(self._message_passing_class(self._params))
-                self._mp_layers[-1].build(MessagePassingInput(embedded_shape, adjacency_list_shapes))
-
-        # If required, prepare for a LayerNorm:
-        if self._use_inter_layer_layernorm:
-            self._inter_layer_layernorm = tf.keras.layers.LayerNormalization()
-
-        # Construct the per-node dense layers.
-        for layer_idx in range(self._num_layers):
-            if layer_idx % self._dense_every_num_layers == 0:
-                with tf.name_scope(f"Layer_{layer_idx}_Dense"):
-                    self._dense_layers[str(layer_idx)] = tf.keras.layers.Dense(
-                        units=self._hidden_dim,
-                        use_bias=False,
-                        activation=self._dense_intermediate_layer_activation_fn,
-                    )
-                    self._dense_layers[str(layer_idx)].build(embedded_shape)
-
-            if layer_idx and layer_idx % self._global_exchange_every_num_layers == 0:
-                with tf.name_scope(f"Layer_{layer_idx}_Global_Exchange"):
-                    if self._global_exchange_mode.lower() == "mean":
-                        exchange_layer_class = GraphGlobalMeanExchange
-                    elif self._global_exchange_mode.lower() == "gru":
-                        exchange_layer_class = GraphGlobalGRUExchange
-                    elif self._global_exchange_mode.lower() == "mlp":
-                        exchange_layer_class = GraphGlobalMLPExchange
-                    exchange_layer = exchange_layer_class(
-                        hidden_dim=self._hidden_dim,
-                        weighting_fun=self._global_exchange_weighting_fun,
-                        num_heads=self._global_exchange_num_heads,
-                        dropout_rate=self._global_exchange_dropout_rate,
-                    )
-                    exchange_layer.build(
-                        GraphGlobalExchangeInput(
-                            node_embeddings=tf.TensorShape((None, self._hidden_dim)),
-                            node_to_graph_map=tf.TensorShape((None,)),
-                            num_graphs=tf.TensorShape(()),
+            # Construct the graph message passing layers.
+            for layer_idx in range(self._num_layers):
+                with tf.name_scope(f"Layer_{layer_idx}"):
+                    with tf.name_scope("MessagePassing"):
+                        self._mp_layers.append(
+                            self._message_passing_class(self._params)
                         )
-                    )
-                    self._global_exchange_layers[str(layer_idx)] = exchange_layer
+                        self._mp_layers[-1].build(
+                            MessagePassingInput(embedded_shape, adjacency_list_shapes)
+                        )
+
+                    # If required, prepare for a LayerNorm:
+                    if self._use_inter_layer_layernorm:
+                        with tf.name_scope(f"LayerNorm"):
+                            self._inter_layer_layernorms.append(
+                                tf.keras.layers.LayerNormalization()
+                            )
+                            self._inter_layer_layernorms[-1].build(embedded_shape)
+
+                    # Construct the per-node dense layers.
+                    if layer_idx % self._dense_every_num_layers == 0:
+                        with tf.name_scope(f"Dense"):
+                            self._dense_layers[str(layer_idx)] = tf.keras.layers.Dense(
+                                units=self._hidden_dim,
+                                use_bias=False,
+                                activation=self._dense_intermediate_layer_activation_fn,
+                            )
+                            self._dense_layers[str(layer_idx)].build(embedded_shape)
+
+                    if (
+                        layer_idx
+                        and layer_idx % self._global_exchange_every_num_layers == 0
+                    ):
+                        with tf.name_scope(f"Global_Exchange"):
+                            if self._global_exchange_mode.lower() == "mean":
+                                exchange_layer_class = GraphGlobalMeanExchange
+                            elif self._global_exchange_mode.lower() == "gru":
+                                exchange_layer_class = GraphGlobalGRUExchange
+                            elif self._global_exchange_mode.lower() == "mlp":
+                                exchange_layer_class = GraphGlobalMLPExchange
+                            exchange_layer = exchange_layer_class(
+                                hidden_dim=self._hidden_dim,
+                                weighting_fun=self._global_exchange_weighting_fun,
+                                num_heads=self._global_exchange_num_heads,
+                                dropout_rate=self._global_exchange_dropout_rate,
+                            )
+                            exchange_layer.build(
+                                GraphGlobalExchangeInput(
+                                    node_embeddings=tf.TensorShape(
+                                        (None, self._hidden_dim)
+                                    ),
+                                    node_to_graph_map=tf.TensorShape((None,)),
+                                    num_graphs=tf.TensorShape(()),
+                                )
+                            )
+                            self._global_exchange_layers[
+                                str(layer_idx)
+                            ] = exchange_layer
 
         super().build(tensor_shapes)
 
@@ -271,7 +287,9 @@ class GNN(tf.keras.layers.Layer):
 
             # If required, apply a LayerNorm:
             if self._use_inter_layer_layernorm:
-                cur_node_representations = self._inter_layer_layernorm(cur_node_representations)
+                cur_node_representations = self._inter_layer_layernorms[layer_idx](
+                    cur_node_representations
+                )
 
             # Apply dense layer, if needed.
             if layer_idx % self._dense_every_num_layers == 0:
