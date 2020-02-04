@@ -92,11 +92,18 @@ def get_dataset(
     if not dataset_cls:
         dataset_cls, dataset_default_hyperparameter_overrides = task_name_to_dataset_class(task_name)
         dataset_params = dataset_cls.get_default_hyperparameters()
+        print(f" Dataset default parameters: {dataset_params}")
         dataset_params.update(dataset_default_hyperparameter_overrides)
+        if len(dataset_default_hyperparameter_overrides):
+            print(f"  Dataset parameters overridden by task defaults: {dataset_default_hyperparameter_overrides}")
         dataset_params.update(dataset_model_optimised_default_hyperparameters)
+        if len(dataset_default_hyperparameter_overrides):
+            print(f"  Dataset parameters overridden by task/model defaults: {dataset_model_optimised_default_hyperparameters}")
     else:
         dataset_params = loaded_data_hyperparameters
     dataset_params.update(cli_data_hyperparameter_overrides)
+    if len(cli_data_hyperparameter_overrides):
+        print(f"  Dataset parameters overridden from CLI: {cli_data_hyperparameter_overrides}")
     return dataset_cls(dataset_params)
 
 
@@ -113,17 +120,24 @@ def get_model(
     if not model_cls:
         model_cls, model_default_hyperparameter_overrides = task_name_to_model_class(task_name)
         model_params = model_cls.get_default_hyperparameters(msg_passing_implementation)
-        model_params["gnn_message_calculation_class"] = msg_passing_implementation
+        print(f" Model default parameters: {model_params}")
         model_params.update(model_default_hyperparameter_overrides)
+        if len(model_default_hyperparameter_overrides):
+            print(f"  Model parameters overridden by task defaults: {model_default_hyperparameter_overrides}")
         model_params.update(dataset_model_optimised_default_hyperparameters)
+        if len(dataset_model_optimised_default_hyperparameters):
+            print(f"  Model parameters overridden by task/model defaults: {dataset_model_optimised_default_hyperparameters}")
     else:
         model_params = loaded_model_hyperparameters
     model_params.update(cli_model_hyperparameter_overrides)
+    if len(cli_model_hyperparameter_overrides):
+        print(f"  Model parameters overridden from CLI: {cli_model_hyperparameter_overrides}")
     if len(hyperdrive_hyperparameter_overrides) > 0:
         # Only require azure_ml if needed:
         from ..azure_ml.utils import override_model_params_with_hyperdrive_params
         override_model_params_with_hyperdrive_params(model_params, hyperdrive_hyperparameter_overrides)
-    return model_cls(model_params, num_edge_types=dataset.num_edge_types)
+        print(f"  Model parameters overridden for Hyperdrive: {hyperdrive_hyperparameter_overrides}")
+    return model_cls(model_params, dataset=dataset)
 
 
 def get_model_and_dataset(
