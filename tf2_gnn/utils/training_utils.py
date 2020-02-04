@@ -137,7 +137,7 @@ def get_model(
         from ..azure_ml.utils import override_model_params_with_hyperdrive_params
         override_model_params_with_hyperdrive_params(model_params, hyperdrive_hyperparameter_overrides)
         print(f"  Model parameters overridden for Hyperdrive: {hyperdrive_hyperparameter_overrides}")
-    return model_cls(model_params, dataset=dataset)
+    return model_cls(model_params, num_edge_types=dataset.num_edge_types)
 
 
 def get_model_and_dataset(
