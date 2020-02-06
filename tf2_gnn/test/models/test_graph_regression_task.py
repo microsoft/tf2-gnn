@@ -49,7 +49,7 @@ def weights_file():
 def test_weights_save_without_error(jsonl_dataset: GraphDataset, weights_file: str):
     model = GraphRegressionTask(
         GraphRegressionTask.get_default_hyperparameters(),
-        num_edge_types=jsonl_dataset.num_edge_types,
+        dataset=jsonl_dataset,
     )
     data_description = jsonl_dataset.get_batch_tf_data_description()
     model.build(data_description.batch_features_shapes)
@@ -65,7 +65,7 @@ def test_weights_load_from_file(jsonl_dataset: GraphDataset, weights_file: str):
     data_description = jsonl_dataset.get_batch_tf_data_description()
     model_1 = GraphRegressionTask(
         GraphRegressionTask.get_default_hyperparameters(),
-        num_edge_types=jsonl_dataset.num_edge_types,
+        dataset=jsonl_dataset,
     )
     model_1.build(data_description.batch_features_shapes)
     model_1.save_weights(weights_file, save_format="h5")
@@ -79,7 +79,7 @@ def test_weights_load_from_file(jsonl_dataset: GraphDataset, weights_file: str):
     # Build a second model and load the first set of weights into it.
     model_2 = GraphRegressionTask(
         GraphRegressionTask.get_default_hyperparameters(),
-        num_edge_types=jsonl_dataset.num_edge_types,
+        dataset=jsonl_dataset,
     )
     model_2.build(data_description.batch_features_shapes)
 
@@ -97,7 +97,7 @@ def test_train_improvement(jsonl_dataset: GraphDataset):
 
     model = GraphRegressionTask(
         GraphRegressionTask.get_default_hyperparameters(),
-        num_edge_types=jsonl_dataset.num_edge_types,
+        dataset=jsonl_dataset,
     )
     data_description = jsonl_dataset.get_batch_tf_data_description()
     model.build(data_description.batch_features_shapes)
