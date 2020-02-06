@@ -9,7 +9,12 @@ import numpy as np
 import tensorflow as tf
 from dpu_utils.utils import RichPath
 
-from .graph_dataset import DataFold, GraphBatchTFDataDescription, GraphDataset, GraphSample
+from .graph_dataset import (
+    DataFold,
+    GraphBatchTFDataDescription,
+    GraphDataset,
+    GraphSample,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +29,9 @@ class GraphWithLabelSample(GraphSample):
         node_features: List[np.ndarray],
         target_value: float,
     ):
-        super().__init__(adjacency_lists, type_to_node_to_num_incoming_edges, node_features)
+        super().__init__(
+            adjacency_lists, type_to_node_to_num_incoming_edges, node_features
+        )
         self._target_value = target_value
 
     @property
@@ -65,9 +72,7 @@ class JsonLGraphDataset(GraphDataset[GraphWithLabelSample]):
             "tie_fwd_bkwd_edges": True,
         }
 
-    def __init__(
-        self, params: Dict[str, Any],
-    ):
+    def __init__(self, params: Dict[str, Any]):
         super().__init__(params)
         self._params = params
         self._for_classification = params["for_classification"]
@@ -99,7 +104,9 @@ class JsonLGraphDataset(GraphDataset[GraphWithLabelSample]):
     def params(self) -> Dict[str, Any]:
         return self._params
 
-    def load_data(self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None) -> None:
+    def load_data(
+        self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None
+    ) -> None:
         """Load the data from disk."""
         if path is None:
             path = RichPath.create(self.default_data_directory())
@@ -110,21 +117,28 @@ class JsonLGraphDataset(GraphDataset[GraphWithLabelSample]):
             folds_to_load = {DataFold.TRAIN, DataFold.VALIDATION, DataFold.TEST}
 
         if DataFold.TRAIN in folds_to_load:
-            self._loaded_data[DataFold.TRAIN] = self.__load_data(path.join("train.jsonl.gz"))
+            self._loaded_data[DataFold.TRAIN] = self.__load_data(
+                path.join("train.jsonl.gz")
+            )
             logger.debug("Done loading training data.")
         if DataFold.VALIDATION in folds_to_load:
-            self._loaded_data[DataFold.VALIDATION] = self.__load_data(path.join("valid.jsonl.gz"))
+            self._loaded_data[DataFold.VALIDATION] = self.__load_data(
+                path.join("valid.jsonl.gz")
+            )
             logger.debug("Done loading validation data.")
         if DataFold.TEST in folds_to_load:
-            self._loaded_data[DataFold.TEST] = self.__load_data(path.join("test.jsonl.gz"))
+            self._loaded_data[DataFold.TEST] = self.__load_data(
+                path.join("test.jsonl.gz")
+            )
             logger.debug("Done loading test data.")
 
     def __load_data(self, data_file: RichPath) -> List[GraphWithLabelSample]:
         return [
-            self.__process_raw_datapoint(datapoint) for datapoint in data_file.read_by_file_suffix()
+            self._process_raw_datapoint(datapoint)
+            for datapoint in data_file.read_by_file_suffix()
         ]
 
-    def __process_raw_datapoint(self, datapoint: Dict[str, Any]) -> GraphWithLabelSample:
+    def _process_raw_datapoint(self, datapoint: Dict[str, Any]) -> GraphWithLabelSample:
         target_value = datapoint["Property"]
         if self._for_classification and target_value not in {0.0, 1.0}:
             raise ValueError(
@@ -137,7 +151,10 @@ class JsonLGraphDataset(GraphDataset[GraphWithLabelSample]):
         raw_adjacency_lists = datapoint["graph"]["adjacency_lists"]
 
         type_to_adj_list = [
-            [] for _ in range(self._num_fwd_edge_types + int(self.params["add_self_loop_edges"]))
+            []
+            for _ in range(
+                self._num_fwd_edge_types + int(self.params["add_self_loop_edges"])
+            )
         ]  # type: List[List[Tuple[int, int]]]
         type_to_num_incoming_edges = np.zeros(shape=(self.num_edge_types, num_nodes))
         for raw_edge_type, edges in enumerate(raw_adjacency_lists):
@@ -219,8 +236,14 @@ class JsonLGraphDataset(GraphDataset[GraphWithLabelSample]):
         return GraphBatchTFDataDescription(
             batch_features_types=data_description.batch_features_types,
             batch_features_shapes=data_description.batch_features_shapes,
-            batch_labels_types={**data_description.batch_labels_types, "target_value": tf.float32},
-            batch_labels_shapes={**data_description.batch_labels_shapes, "target_value": (None,)},
+            batch_labels_types={
+                **data_description.batch_labels_types,
+                "target_value": tf.float32,
+            },
+            batch_labels_shapes={
+                **data_description.batch_labels_shapes,
+                "target_value": (None,),
+            },
         )
 
 
