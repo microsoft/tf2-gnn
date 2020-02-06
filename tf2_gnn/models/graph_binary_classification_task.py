@@ -4,7 +4,8 @@ from typing import Any, Dict, List, Tuple, Optional
 import numpy as np
 import tensorflow as tf
 
-from tf2_gnn.models.graph_task_model import GraphTaskModel
+from tf2_gnn.data import GraphDataset
+from tf2_gnn.models import GraphTaskModel
 from tf2_gnn.layers import WeightedSumGraphRepresentation, NodesToGraphRepresentationInput
 
 
@@ -20,8 +21,8 @@ class GraphBinaryClassificationTask(GraphTaskModel):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], num_edge_types: int, name: str = None):
-        super().__init__(params, num_edge_types=num_edge_types, name=name)
+    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
+        super().__init__(params, dataset=dataset, name=name)
         self._node_to_graph_aggregation = None
 
     def build(self, input_shapes):

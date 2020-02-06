@@ -5,6 +5,7 @@ from typing import Tuple, List, Dict, Optional, Any
 import tensorflow as tf
 
 from tf2_gnn import GNNInput, GNN
+from tf2_gnn.data import GraphDataset
 
 
 class GraphTaskModel(tf.keras.Model):
@@ -22,10 +23,10 @@ class GraphTaskModel(tf.keras.Model):
         params.update(these_hypers)
         return params
 
-    def __init__(self, params: Dict[str, Any], num_edge_types: int, name: str = None):
+    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
         super().__init__(name=name)
         self._params = params
-        self._num_edge_types = num_edge_types
+        self._num_edge_types = dataset.num_edge_types
 
     def build(self, input_shapes: Dict[str, Any]):
         graph_params = {

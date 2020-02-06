@@ -61,6 +61,10 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
         some_data_fold = next(iter(self._loaded_data.values()))
         return (some_data_fold[0].node_features.shape[-1],)
 
+    @property
+    def num_node_target_labels(self) -> int:
+        return 121
+
     # -------------------- Data Loading --------------------
     def load_data(self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None) -> None:
         # Data in format as downloaded from https://s3.us-east-2.amazonaws.com/dgl.ai/dataset/ppi.zip

@@ -65,7 +65,7 @@ register_task(
     dataset_class=PPIDataset,
     dataset_default_hypers={},
     model_class=NodeMulticlassTask,
-    model_default_hypers={"num_node_labels": 121},
+    model_default_hypers={},
 )
 
 register_task(

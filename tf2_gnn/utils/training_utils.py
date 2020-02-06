@@ -137,7 +137,7 @@ def get_model(
         from ..azure_ml.utils import override_model_params_with_hyperdrive_params
         override_model_params_with_hyperdrive_params(model_params, hyperdrive_hyperparameter_overrides)
         print(f"  Model parameters overridden for Hyperdrive: {hyperdrive_hyperparameter_overrides}")
-    return model_cls(model_params, num_edge_types=dataset.num_edge_types)
+    return model_cls(model_params, dataset=dataset)
 
 
 def get_model_and_dataset(
@@ -183,6 +183,11 @@ def get_model_and_dataset(
         data_to_load.get("dataset_params", {}),
         json.loads(cli_data_hyperparameter_overrides or "{}"),
     )
+
+    # Actually load data:
+    print(f"Loading data from {data_path}.")
+    dataset.load_data(data_path, folds_to_load)
+
     model = get_model(
         msg_passing_implementation,
         task_name,
@@ -195,10 +200,6 @@ def get_model_and_dataset(
         cli_model_hyperparameter_overrides=json.loads(cli_model_hyperparameter_overrides or "{}"),
         hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides or {},
     )
-
-    # Actually load data:
-    print(f"Loading data from {data_path}.")
-    dataset.load_data(data_path, folds_to_load)
 
     data_description = dataset.get_batch_tf_data_description()
     model.build(data_description.batch_features_shapes)
