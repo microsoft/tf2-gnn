@@ -41,11 +41,11 @@ def test_batching(jsonl_dataset: JsonLGraphDataset):
     # Test that first minibatch has the right contents:
     first_minibatch = next(tf_dataset_itererator)
     (batch_features, batch_labels) = first_minibatch
-    assert len(batch_features.keys()) == 8
+    assert len(batch_features.keys()) == 7
     assert "node_features" in batch_features
     assert "node_to_graph_map" in batch_features
     assert "num_graphs_in_batch" in batch_features
-    for edge_type_idx in range(5):
+    for edge_type_idx in range(4):
         assert f"adjacency_list_{edge_type_idx}" in batch_features
 
     assert batch_features["num_graphs_in_batch"] == 10
