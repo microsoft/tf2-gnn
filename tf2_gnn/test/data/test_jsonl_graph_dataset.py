@@ -11,16 +11,14 @@ from tf2_gnn.data import JsonLGraphDataset, DataFold
 def jsonl_dataset():
     dataset_params = JsonLGraphDataset.get_default_hyperparameters()
     dataset = JsonLGraphDataset(dataset_params)
-    data_path = RichPath.create(
-        os.path.join(os.path.dirname(__file__), "..", "test_datasets")
-    )
+    data_path = RichPath.create(os.path.join(os.path.dirname(__file__), "..", "test_datasets"))
     dataset.load_data(data_path, folds_to_load=[DataFold.TRAIN, DataFold.VALIDATION])
 
     return dataset
 
 
 def test_num_edge_types(jsonl_dataset: JsonLGraphDataset):
-    # We expect 4 tied fwd/bkwd edge typess + 1 self-loop type:
+    # We expect 3 tied fwd/bkwd edge typess + 1 self-loop type:
     assert jsonl_dataset.num_edge_types == 4
 
 
@@ -36,9 +34,7 @@ def test_num_loaded_data_elements(jsonl_dataset: JsonLGraphDataset):
 
 
 def test_batching(jsonl_dataset: JsonLGraphDataset):
-    tf_dataset = jsonl_dataset.get_tensorflow_dataset(
-        DataFold.TRAIN, use_worker_threads=False
-    )
+    tf_dataset = jsonl_dataset.get_tensorflow_dataset(DataFold.TRAIN, use_worker_threads=False)
 
     tf_dataset_itererator = iter(tf_dataset)
 
