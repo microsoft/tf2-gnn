@@ -60,7 +60,7 @@ class JsonLGraphDataset(GraphDataset[GraphWithLabelSample]):
         return {
             "for_classification": False,
             "max_nodes_per_batch": 10000,
-            "num_fwd_edge_types": 4,
+            "num_fwd_edge_types": 3,
             "add_self_loop_edges": True,
             "tie_fwd_bkwd_edges": True,
         }

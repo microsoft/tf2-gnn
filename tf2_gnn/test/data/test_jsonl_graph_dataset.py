@@ -21,7 +21,7 @@ def jsonl_dataset():
 
 def test_num_edge_types(jsonl_dataset: JsonLGraphDataset):
     # We expect 4 tied fwd/bkwd edge typess + 1 self-loop type:
-    assert jsonl_dataset.num_edge_types == 5
+    assert jsonl_dataset.num_edge_types == 4
 
 
 def test_node_feature_shape(jsonl_dataset: JsonLGraphDataset):
