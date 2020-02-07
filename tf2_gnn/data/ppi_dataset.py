@@ -39,7 +39,7 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
     def default_data_path() -> str:
         return "data/ppi"
 
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         num_edge_types = 1
         if params["add_self_loop_edges"]:
             num_edge_types += 1
@@ -47,7 +47,7 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
             num_edge_types += 1
         params["num_edge_types"] = num_edge_types
 
-        super().__init__(params)
+        super().__init__(params, metadata=metadata)
 
         # Things that will be filled once we load data:
         self._loaded_data: Dict[DataFold, List[PPIGraphSample]] = {}

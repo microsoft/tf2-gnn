@@ -54,9 +54,9 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
             "task_id": 0,
         }
 
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         logger.info("Initialising QM9 Dataset.")
-        super().__init__(params)
+        super().__init__(params, metadata=metadata)
         self._params = params
         self._num_fwd_edge_types = 4
         if params["tie_fwd_bkwd_edges"]:

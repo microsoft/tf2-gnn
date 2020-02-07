@@ -66,8 +66,9 @@ class GraphDataset(Generic[GraphSampleType]):
     labels for the graphs or nodes) to the generated minibatches.
     """
 
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         self._params = params
+        self._metadata = metadata if metadata is not None else {}
 
     @property
     @abstractmethod

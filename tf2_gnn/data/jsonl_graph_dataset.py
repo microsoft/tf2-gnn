@@ -65,8 +65,10 @@ class JsonLGraphDataset(GraphDataset[GraphWithLabelSample]):
             "tie_fwd_bkwd_edges": True,
         }
 
-    def __init__(self, params: Dict[str, Any]):
-        super().__init__(params)
+    def __init__(
+        self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(params, metadata=metadata)
         self._params = params
         self._for_classification = params["for_classification"]
         self._num_fwd_edge_types = params["num_fwd_edge_types"]
