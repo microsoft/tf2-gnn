@@ -30,6 +30,7 @@ def save_model(save_file, model: GraphTaskModel, dataset: GraphDataset) -> None:
         "model_params": model._params,
         "dataset_class": dataset.__class__,
         "dataset_params": dataset._params,
+        "dataset_metadata": dataset._metadata,
     }
     with open(save_file, "wb") as out_file:
         pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
@@ -88,6 +89,7 @@ def get_dataset(
     dataset_model_optimised_default_hyperparameters: Dict[str, Any],
     loaded_data_hyperparameters: Dict[str, Any],
     cli_data_hyperparameter_overrides: Dict[str, Any],
+    loaded_metadata: Dict[str, Any],
 ) -> GraphDataset:
     if not dataset_cls:
         dataset_cls, dataset_default_hyperparameter_overrides = task_name_to_dataset_class(task_name)
@@ -104,7 +106,9 @@ def get_dataset(
     dataset_params.update(cli_data_hyperparameter_overrides)
     if len(cli_data_hyperparameter_overrides):
         print(f"  Dataset parameters overridden from CLI: {cli_data_hyperparameter_overrides}")
-    return dataset_cls(dataset_params)
+    if len(loaded_metadata):
+        print("  WARNING: Dataset metadata loaded from disk, not calculated from data.")
+    return dataset_cls(dataset_params, loaded_metadata)
 
 
 def get_model(
@@ -182,6 +186,7 @@ def get_model_and_dataset(
         default_task_model_hypers.get("task_params", {}),
         data_to_load.get("dataset_params", {}),
         json.loads(cli_data_hyperparameter_overrides or "{}"),
+        data_to_load.get("dataset_metadata", {})
     )
 
     # Actually load data:
