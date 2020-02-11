@@ -74,7 +74,7 @@ class JsonLGraphPropertyDataset(JsonLGraphDataset[GraphWithPropertySample]):
             num_nodes=len(node_features),
         )
 
-        target_value = datapoint["Property"]
+        target_value = float(datapoint["Property"])
         if self._threshold_for_classification is not None:
             target_value = float(target_value > self._threshold_for_classification)
 
