@@ -91,4 +91,4 @@ class GraphRegressionTask(GraphTaskModel):
             batch_task_result["batch_absolute_error"] for batch_task_result in task_results
         )
         epoch_mae = total_absolute_error / total_num_graphs
-        return epoch_mae.numpy(), f"Mean Absolute Error = {epoch_mae.numpy()}."
+        return epoch_mae.numpy(), f"Mean Absolute Error = {epoch_mae.numpy():.3f}"

@@ -107,4 +107,4 @@ class GraphBinaryClassificationTask(GraphTaskModel):
             batch_task_result["num_correct"] for batch_task_result in task_results
         )
         epoch_acc = tf.cast(total_num_correct, tf.float32) / total_num_graphs
-        return -epoch_acc.numpy(), f"Accuracy = {epoch_acc.numpy()}."
+        return -epoch_acc.numpy(), f"Accuracy = {epoch_acc.numpy():.3f}"
