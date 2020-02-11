@@ -66,6 +66,12 @@ class GraphDataset(Generic[GraphSampleType]):
     labels for the graphs or nodes) to the generated minibatches.
     """
 
+    @classmethod
+    def get_default_hyperparameters(cls) -> Dict[str, Any]:
+        return {
+            "max_nodes_per_batch": 10000,
+        }
+
     def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         self._params = params
         self._metadata = metadata if metadata is not None else {}
@@ -238,8 +244,8 @@ class GraphDataset(Generic[GraphSampleType]):
         return GraphBatchTFDataDescription(
             batch_features_types=batch_features_types,
             batch_features_shapes=batch_features_shapes,
-            batch_labels_types={},
-            batch_labels_shapes={},
+            batch_labels_types=batch_labels_types,
+            batch_labels_shapes=batch_labels_shapes,
         )
 
     def get_tensorflow_dataset(

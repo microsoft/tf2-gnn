@@ -9,7 +9,7 @@ import pytest
 import tensorflow as tf
 from dpu_utils.utils import RichPath
 
-from tf2_gnn.data import DataFold, GraphDataset, JsonLGraphDataset
+from tf2_gnn.data import DataFold, GraphDataset, JsonLGraphPropertyDataset
 from tf2_gnn.models import GraphRegressionTask
 
 
@@ -23,8 +23,8 @@ original_warn, warnings.warn = warnings.warn, ignore_warn
 
 @pytest.fixture
 def jsonl_dataset():
-    dataset_params = JsonLGraphDataset.get_default_hyperparameters()
-    dataset = JsonLGraphDataset(dataset_params)
+    dataset_params = JsonLGraphPropertyDataset.get_default_hyperparameters()
+    dataset = JsonLGraphPropertyDataset(dataset_params)
     data_path = RichPath.create(
         os.path.join(os.path.dirname(__file__), "..", "test_datasets")
     )
