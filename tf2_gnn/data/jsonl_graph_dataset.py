@@ -93,7 +93,7 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
 
         return GraphSample(
             adjacency_lists=type_to_adj_list,
-            type_to_node_to_num_incoming_edges=type_to_num_incoming_edges,
+            type_to_node_to_num_inedges=type_to_num_incoming_edges,
             node_features=node_features,
         )
 
