@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Set
 import numpy as np
 from dpu_utils.utils import RichPath
 
-from .graph_dataset import DataFold, GraphDataset, GraphSampleType
+from .graph_dataset import DataFold, GraphDataset, GraphSampleType, GraphSample
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,17 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         ]
 
     def _process_raw_datapoint(self, datapoint: Dict[str, Any]) -> GraphSampleType:
-        raise NotImplementedError()
+        node_features = datapoint["graph"]["node_features"]
+        type_to_adj_list, type_to_num_incoming_edges = self._process_raw_adjacency_lists(
+            raw_adjacency_lists=datapoint["graph"]["adjacency_lists"],
+            num_nodes=len(node_features),
+        )
+
+        return GraphSample(
+            adjacency_lists=type_to_adj_list,
+            type_to_node_to_num_incoming_edges=type_to_num_incoming_edges,
+            node_features=node_features,
+        )
 
     def _process_raw_adjacency_lists(
         self, raw_adjacency_lists: List[List[Tuple]], num_nodes: int
