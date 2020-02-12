@@ -69,9 +69,6 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
         self._loaded_data: Dict[DataFold, List[QM9GraphSample]] = {}
         logger.debug("Done initialising QM9 dataset.")
 
-    @property
-    def name(self) -> str:
-        return "QM9"
 
     @property
     def num_edge_types(self) -> int:
@@ -82,10 +79,6 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
         curr_dir = Path(os.path.abspath(inspect.getsourcefile(lambda: 0)))
         data_directory = os.path.join(curr_dir.parent.parent, "data")
         return data_directory
-
-    @property
-    def params(self) -> Dict[str, Any]:
-        return self._params
 
     def load_data(self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None) -> None:
         """Load the data from disk."""

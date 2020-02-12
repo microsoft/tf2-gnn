@@ -40,21 +40,20 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
         return "data/ppi"
 
     def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
-        num_edge_types = 1
-        if params["add_self_loop_edges"]:
-            num_edge_types += 1
-        if not params["tie_fwd_bkwd_edges"]:
-            num_edge_types += 1
-        params["num_edge_types"] = num_edge_types
-
         super().__init__(params, metadata=metadata)
+
+        self._num_edge_types = 1
+        if params["add_self_loop_edges"]:
+            self._num_edge_types += 1
+        if not params["tie_fwd_bkwd_edges"]:
+            self._num_edge_types += 1
 
         # Things that will be filled once we load data:
         self._loaded_data: Dict[DataFold, List[PPIGraphSample]] = {}
 
     @property
-    def name(self) -> str:
-        return "PPI"
+    def num_edge_types(self) -> int:
+        return self._num_edge_types
 
     @property
     def node_feature_shape(self) -> Tuple:

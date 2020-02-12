@@ -77,8 +77,25 @@ class GraphDataset(Generic[GraphSampleType]):
         self._metadata = metadata if metadata is not None else {}
 
     @property
-    @abstractmethod
     def name(self) -> str:
+        return self.__class__.__name__
+
+    @property
+    def params(self) -> Dict[str, Any]:
+        return self._params
+
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        return self._metadata
+
+    @property
+    @abstractmethod
+    def num_edge_types(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def node_feature_shape(self) -> Tuple:
         pass
 
     @abstractmethod
@@ -91,15 +108,6 @@ class GraphDataset(Generic[GraphSampleType]):
         Note: The iterator is expected to shuffle training data on every call.
         """
         pass
-
-    @property
-    @abstractmethod
-    def node_feature_shape(self) -> Tuple:
-        pass
-
-    @property
-    def num_edge_types(self) -> int:
-        return self._params["num_edge_types"]
 
     def graph_batch_iterator(
         self, data_fold: DataFold

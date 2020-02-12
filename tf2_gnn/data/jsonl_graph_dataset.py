@@ -50,16 +50,16 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         self._loaded_data: Dict[DataFold, List[GraphSampleType]] = {}
 
     @property
-    def name(self) -> str:
-        return self.__class__.__name__
-
-    @property
     def num_edge_types(self) -> int:
         return self._num_edge_types
 
     @property
-    def params(self) -> Dict[str, Any]:
-        return self._params
+    def node_feature_shape(self) -> Tuple:
+        """Return the shape of the node features."""
+        if self._node_feature_shape is None:
+            some_data_fold = next(iter(self._loaded_data.values()))
+            self._node_feature_shape = (len(some_data_fold[0].node_features[0]),)
+        return self._node_feature_shape
 
     def load_data(self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None) -> None:
         """Load the data from disk."""
@@ -144,14 +144,6 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
             for adj_list in type_to_adj_list
         ]
         return type_to_adj_list, type_to_num_incoming_edges
-
-    @property
-    def node_feature_shape(self) -> Tuple:
-        """Return the shape of the node features."""
-        if self._node_feature_shape is None:
-            some_data_fold = next(iter(self._loaded_data.values()))
-            self._node_feature_shape = (len(some_data_fold[0].node_features[0]),)
-        return self._node_feature_shape
 
     def _graph_iterator(self, data_fold: DataFold) -> Iterator[GraphSampleType]:
         if data_fold == DataFold.TRAIN:
