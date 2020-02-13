@@ -1,6 +1,6 @@
 import time
 from abc import abstractmethod
-from typing import Tuple, List, Dict, Optional, Any
+from typing import Tuple, List, Dict, Optional, Any, Iterable, Union
 
 import tensorflow as tf
 
@@ -27,6 +27,7 @@ class GraphTaskModel(tf.keras.Model):
         super().__init__(name=name)
         self._params = params
         self._num_edge_types = dataset.num_edge_types
+        self._train_step_counter = 0
 
     def build(self, input_shapes: Dict[str, Any]):
         graph_params = {
@@ -45,35 +46,7 @@ class GraphTaskModel(tf.keras.Model):
             )
         )
 
-        # Also prepare for training:
-        self._optimizer = self.__make_optimizer()
-
         super().build([])
-
-    def __make_optimizer(self):
-        optimizer_name = self._params["optimizer"].lower()
-        if optimizer_name == "sgd":
-            optimizer = tf.keras.optimizers.SGD(
-                learning_rate=self._params["learning_rate"],
-                momentum=self._params["momentum"],
-                clipvalue=self._params["gradient_clip_value"],
-            )
-        elif optimizer_name == "rmsprop":
-            optimizer = tf.keras.optimizers.RMSprop(
-                learning_rate=self._params["learning_rate"],
-                decay=self._params["learning_rate_decay"],
-                momentum=self._params["momentum"],
-                clipvalue=self._params["gradient_clip_value"],
-            )
-        elif optimizer_name == "adam":
-            optimizer = tf.keras.optimizers.Adam(
-                learning_rate=self._params["learning_rate"],
-                clipvalue=self._params["gradient_clip_value"],
-            )
-        else:
-            raise Exception('Unknown optimizer "%s".' % (self._params["optimizer"]))
-
-        return optimizer
 
     def get_initial_node_feature_shape(self, input_shapes) -> tf.TensorShape:
         return input_shapes["node_features"]
@@ -159,6 +132,60 @@ class GraphTaskModel(tf.keras.Model):
         """
         pass
 
+    def _make_optimizer(
+        self,
+        learning_rate: Optional[
+            Union[float, tf.keras.optimizers.schedules.LearningRateSchedule]
+        ] = None,
+    ) -> tf.keras.optimizers.Optimizer:
+        """
+        Create fresh optimizer.
+
+        Args:
+            learning_rate: Optional setting for learning rate; if unset, will
+                use value from self._params["learning_rate"].
+        """
+        if learning_rate is None:
+            learning_rate = self._params["learning_rate"]
+
+        optimizer_name = self._params["optimizer"].lower()
+        if optimizer_name == "sgd":
+            return tf.keras.optimizers.SGD(
+                learning_rate=learning_rate,
+                momentum=self._params["momentum"],
+                clipvalue=self._params["gradient_clip_value"],
+            )
+        elif optimizer_name == "rmsprop":
+            return tf.keras.optimizers.RMSprop(
+                learning_rate=learning_rate,
+                decay=self._params["learning_rate_decay"],
+                momentum=self._params["momentum"],
+                clipvalue=self._params["gradient_clip_value"],
+            )
+        elif optimizer_name == "adam":
+            return tf.keras.optimizers.Adam(
+                learning_rate=learning_rate,
+                clipvalue=self._params["gradient_clip_value"],
+            )
+        else:
+            raise Exception('Unknown optimizer "%s".' % (self._params["optimizer"]))
+
+    def _apply_gradients(
+        self, gradient_variable_pairs: Iterable[Tuple[tf.Tensor, tf.Variable]]
+    ) -> None:
+        """
+        Apply gradients to the models variables during training.
+
+        Args:
+            gradient_variable_pairs: Iterable of pairs of gradients for a variable
+                and the variable itself. Suitable to be fed into
+                tf.keras.optimizer.*.apply_gradients.
+        """
+        if getattr(self, "_optimizer", None) is None:
+            self._optimizer = self._make_optimizer()
+
+        self._optimizer.apply_gradients(gradient_variable_pairs)
+
     # ----------------------------- Training Loop
     def run_one_epoch(
         self, dataset: tf.data.Dataset, quiet: bool = False, training: bool = True,
@@ -176,8 +203,11 @@ class GraphTaskModel(tf.keras.Model):
             task_results.append(task_metrics)
 
             if training:
-                gradients = tape.gradient(task_metrics["loss"], self.trainable_variables)
-                self._optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+                gradients = tape.gradient(
+                    task_metrics["loss"], self.trainable_variables
+                )
+                self._apply_gradients(zip(gradients, self.trainable_variables))
+                self._train_step_counter += 1
 
             if not quiet:
                 epoch_graph_average_loss = (total_loss / float(total_num_graphs)).numpy()
