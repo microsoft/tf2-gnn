@@ -5,7 +5,7 @@ import setuptools
 
 setuptools.setup(
     name="tf2_gnn",
-    version="0.9.16",
+    version="0.9.17", # make sure that this version is specified in line 121 of azureml/utils.py add_tf2_gnn_to_aml_env()
     description="TensorFlow 2.0 implementation of Graph Neural Networks.",
     python_requires=">=3.6",
     install_requires=["numpy", "docopt", "dpu-utils>=0.2.7", "h5py"],
