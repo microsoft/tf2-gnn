@@ -157,12 +157,17 @@ def get_model_and_dataset(
     folds_to_load: Optional[Set[DataFold]] = None,
     load_weights_only: bool = True,
 ):
+    # case of a trained model file being passed, where the entire model should be loaded, 
+    # a new class and dataset type are not required
     if trained_model_file and not load_weights_only:
         with open(trained_model_file, "rb") as in_file:
             data_to_load = pickle.load(in_file)
         model_class = data_to_load["model_class"]
         dataset_class = data_to_load["dataset_class"]
         default_task_model_hypers = {}
+    # case 1: trained_model_file and loading weights only -- create new dataset and class of the type specified by the
+    # task to be trained, but use weights from another corresponding model
+    # case 2: no model to be loaded; make fresh dataset and model classes
     elif (trained_model_file and load_weights_only) or not trained_model_file:
         data_to_load = {}
         model_class, dataset_class = None, None
