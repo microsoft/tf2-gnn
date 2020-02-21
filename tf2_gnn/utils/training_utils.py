@@ -155,7 +155,7 @@ def get_model_and_dataset(
     cli_model_hyperparameter_overrides: Optional[str],
     hyperdrive_hyperparameter_overrides: Dict[str, str] = {},
     folds_to_load: Optional[Set[DataFold]] = None,
-    load_weights_only: bool = True,
+    load_weights_only: bool = False,
 ):
     # case of a trained model file being passed, where the entire model should be loaded, 
     # a new class and dataset type are not required
