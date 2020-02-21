@@ -224,3 +224,13 @@ class GraphTaskModel(tf.keras.Model):
             print("\r\x1b[K", end="")
         total_time = time.time() - epoch_time_start
         return total_loss / float(total_num_graphs), float(total_num_graphs) / total_time, task_results
+
+    # ----------------------------- Prediction Loop
+    def predict(self, dataset: tf.data.Dataset):
+        task_outputs = []
+        for batch_features, _ in dataset:
+            task_outputs.append(self(batch_features, training=False))
+
+        # Note: This assumes that the task output is a tensor (true for classification, regression,
+        #  etc.) but subclasses implementing more complicated outputs will need to override this.
+        return tf.concat(task_outputs, axis=0)
