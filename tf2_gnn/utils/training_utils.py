@@ -143,7 +143,9 @@ def get_model(
         print(f"  Model parameters overridden for Hyperdrive: {hyperdrive_hyperparameter_overrides}")
     return model_cls(model_params, dataset=dataset)
 
-
+# TODO: A better solution to 'loading weights only without model and class' is required.
+# In particular, need to ensure that the weights and the proposed model to be trained match up in their
+# base components (i.e. if loading GNN weights, dimensions need to match for the GNN in finetuning)
 def get_model_and_dataset(
     task_name: Optional[str],
     msg_passing_implementation: Optional[str],
@@ -153,14 +155,15 @@ def get_model_and_dataset(
     cli_model_hyperparameter_overrides: Optional[str],
     hyperdrive_hyperparameter_overrides: Dict[str, str] = {},
     folds_to_load: Optional[Set[DataFold]] = None,
+    load_weights_only: bool = True,
 ):
-    if trained_model_file:
+    if trained_model_file and not load_weights_only:
         with open(trained_model_file, "rb") as in_file:
             data_to_load = pickle.load(in_file)
         model_class = data_to_load["model_class"]
         dataset_class = data_to_load["dataset_class"]
         default_task_model_hypers = {}
-    else:
+    elif (train_model_file and load_weights_only) or not trained_model_file:
         data_to_load = {}
         model_class, dataset_class = None, None
 
@@ -179,6 +182,9 @@ def get_model_and_dataset(
                 default_task_model_hypers = json.load(f)
         else:
             print("File not found, using global defaults.")
+
+        if not trained_model_file and load_weights_only:
+            raise ValueError("Cannot load only weights when model file from which to load is not specified.")
 
     dataset = get_dataset(
         task_name,
@@ -301,16 +307,21 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
     tf.random.set_seed(args.random_seed)
 
     data_path = RichPath.create(args.data_path, args.azure_info)
-    dataset, model = get_model_and_dataset(
-        msg_passing_implementation=args.model,
-        task_name=args.task,
-        data_path=data_path,
-        trained_model_file=args.load_saved_model,
-        cli_data_hyperparameter_overrides=args.data_param_override,
-        cli_model_hyperparameter_overrides=args.model_param_override,
-        hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
-        folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
-    )
+    try:
+        dataset, model = get_model_and_dataset(
+            msg_passing_implementation=args.model,
+            task_name=args.task,
+            data_path=data_path,
+            trained_model_file=args.load_saved_model,
+            cli_data_hyperparameter_overrides=args.data_param_override,
+            cli_model_hyperparameter_overrides=args.model_param_override,
+            hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
+            folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
+            load_weights_only=args.load_weights_only,
+        )
+    except ValueError as err:
+        print(err.args)
+
     log(f"Dataset parameters: {json.dumps(dict(dataset._params))}")
     log(f"Model parameters: {json.dumps(dict(model._params))}")
 
@@ -425,6 +436,12 @@ def get_train_cli_arg_parser():
         "--load-saved-model",
         dest="load_saved_model",
         help="Optional location to load initial model weights from. Should be model stored in earlier run.",
+    )
+    parser.add_argument(
+        "--load-weights-only",
+        dest="load_weights_only",
+        action="store_true",
+        help="Optional to only load the weights of the model rather than class and dataset for further training (used in fine-tuning on pretrained network). Should be model stored in earlier run.",
     )
     parser.add_argument(
         "--quiet", dest="quiet", action="store_true", help="Generate less output during training.",
