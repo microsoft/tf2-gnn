@@ -87,6 +87,14 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
             self._loaded_data[DataFold.TEST] = self.__load_data(path.join("test.jsonl.gz"))
             logger.debug("Done loading test data.")
 
+    def load_data_from_list(
+        self, datapoints: List[Dict[str, Any]], target_fold: DataFold = DataFold.TEST
+    ):
+        if target_fold not in self._loaded_data:
+            self._loaded_data[target_fold] = []
+        for datapoint in datapoints:
+            self._loaded_data[target_fold].append(self._process_raw_datapoint(datapoint))
+
     def __load_data(self, data_file: RichPath) -> List[GraphSampleType]:
         return [
             self._process_raw_datapoint(datapoint) for datapoint in data_file.read_by_file_suffix()

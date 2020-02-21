@@ -100,6 +100,11 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
             self._loaded_data[DataFold.TEST] = self.__load_data(path.join("test.jsonl.gz"))
             logger.debug("Done loading test data.")
 
+    def load_data_from_list(
+        self, datapoints: List[Dict[str, Any]], target_fold: DataFold = DataFold.TEST
+    ):
+        raise NotImplementedError()
+
     def __load_data(self, data_file: RichPath) -> List[QM9GraphSample]:
         data = list(
             data_file.read_by_file_suffix()

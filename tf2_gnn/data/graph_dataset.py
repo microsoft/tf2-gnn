@@ -103,6 +103,12 @@ class GraphDataset(Generic[GraphSampleType]):
         pass
 
     @abstractmethod
+    def load_data_from_list(
+        self, datapoints: List[Dict[str, Any]], target_fold: DataFold = DataFold.TEST
+    ):
+        pass
+
+    @abstractmethod
     def _graph_iterator(self, data_fold: DataFold) -> Iterator[GraphSampleType]:
         """Returns iterator over data in specified fold of the dataset.
         Note: The iterator is expected to shuffle training data on every call.

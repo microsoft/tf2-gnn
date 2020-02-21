@@ -78,6 +78,11 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
         if DataFold.TEST in folds_to_load:
             self._loaded_data[DataFold.TEST] = self.__load_data(path, DataFold.TEST)
 
+    def load_data_from_list(
+        self, datapoints: List[Dict[str, Any]], target_fold: DataFold = DataFold.TEST
+    ):
+        raise NotImplementedError()
+
     def __load_data(self, data_dir: RichPath, data_fold: DataFold) -> List[PPIGraphSample]:
         if data_fold == DataFold.TRAIN:
             data_name = "train"
