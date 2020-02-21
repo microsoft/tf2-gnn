@@ -163,7 +163,7 @@ def get_model_and_dataset(
         model_class = data_to_load["model_class"]
         dataset_class = data_to_load["dataset_class"]
         default_task_model_hypers = {}
-    elif (train_model_file and load_weights_only) or not trained_model_file:
+    elif (trained_model_file and load_weights_only) or not trained_model_file:
         data_to_load = {}
         model_class, dataset_class = None, None
 
