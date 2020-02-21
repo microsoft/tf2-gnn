@@ -65,6 +65,14 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         """Load the data from disk."""
         logger.info(f"Starting to load data from {path}.")
 
+        if self.metadata == {}:
+            metadata_path = path.join("metadata.pkl.gz")
+            if metadata_path.exists():
+                logger.info(f"Loading metadata from {metadata_path}")
+                self._metadata = metadata_path.read_by_file_suffix()
+        else:
+            logger.warning("Using metadata passed to constructor, not metadata stored with data.")
+
         # If we haven't defined what folds to load, load all:
         if folds_to_load is None:
             folds_to_load = {DataFold.TRAIN, DataFold.VALIDATION, DataFold.TEST}
