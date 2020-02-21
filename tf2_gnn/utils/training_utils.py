@@ -4,7 +4,7 @@ import pickle
 import random
 import sys
 import time
-from typing import Dict, Any, Optional, Callable, Set, Type
+from typing import List, Dict, Any, Optional, Callable, Set, Type
 
 import h5py
 import numpy as np
@@ -142,6 +142,41 @@ def get_model(
         override_model_params_with_hyperdrive_params(model_params, hyperdrive_hyperparameter_overrides)
         print(f"  Model parameters overridden for Hyperdrive: {hyperdrive_hyperparameter_overrides}")
     return model_cls(model_params, dataset=dataset)
+
+
+def load_dataset_for_prediction(trained_model_file: str):
+    with open(trained_model_file, "rb") as in_file:
+        data_to_load = pickle.load(in_file)
+    dataset_class : Type[GraphDataset] = data_to_load["dataset_class"]
+
+    return dataset_class(
+        params=data_to_load.get("dataset_params", {}),
+        metadata=data_to_load.get("dataset_metadata", {}),
+    )
+
+
+def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
+    with open(trained_model_file, "rb") as in_file:
+        data_to_load = pickle.load(in_file)
+    model_class : Type[GraphTaskModel] = data_to_load["model_class"]
+
+    # Clear the Keras session so that unique naming does not mess up weight loading.
+    tf.keras.backend.clear_session()
+
+    model = model_class(
+        params=data_to_load.get("model_params", {}),
+        dataset=dataset,
+    )
+
+    data_description = dataset.get_batch_tf_data_description()
+    model.build(data_description.batch_features_shapes)
+
+    trained_model_weights_file = trained_model_file[:-3] + "hdf5"
+    print(f"Restoring model weights from {trained_model_weights_file}.")
+    load_weights_verbosely(trained_model_weights_file, model)
+
+    return model
+
 
 # TODO: A better solution to 'loading weights only without model and class' is required.
 # In particular, need to ensure that the weights and the proposed model to be trained match up in their
