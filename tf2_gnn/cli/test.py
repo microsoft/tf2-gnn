@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
-import json
 import os
-import random
-import time
-from typing import Dict, Any, Optional, Callable
+from typing import Callable
 
-import numpy as np
-import pickle
 import tensorflow as tf
 from dpu_utils.utils import run_and_debug, RichPath
 
 from tf2_gnn import DataFold, GraphDataset, GraphTaskModel
-from tf2_gnn.utils.task_utils import task_name_to_dataset_class, task_name_to_model_class
-from tf2_gnn.utils.training_utils import make_run_id, get_model_and_dataset
+from tf2_gnn.utils.training_utils import get_model_and_dataset
 
 
 def test(
