@@ -33,7 +33,7 @@ def run_from_args(args) -> None:
         cli_model_hyperparameter_overrides=args.model_param_override,
         folds_to_load={DataFold.TEST},
     )
-    test(model, args.TRAINED_MODEL, dataset, lambda msg: print(msg), quiet=args.quiet)
+    test(model, dataset, lambda msg: print(msg), quiet=args.quiet)
 
 
 def run():
