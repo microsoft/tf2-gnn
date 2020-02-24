@@ -30,7 +30,7 @@ Currently, six model types are implemented:
 ## Tasks
 Tasks are viewed as a specific combination of a dataset and a model. The
 interface (and some examples) for this can be found in `tf2_gnn/utils/task_utils.py`.
-Currently, four tasks are implemented, exposing different models:
+Currently, two tasks are implemented, exposing different models.
 
 ### PPI
 The `PPI` task (implemented in `tasks/ppi_dataset.py`) handles the protein-protein

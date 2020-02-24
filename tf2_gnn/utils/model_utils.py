@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+from distutils.util import strtobool
 from typing import Dict, Any, Optional, Set, Type
 
 import h5py
@@ -109,6 +110,47 @@ def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
     return model
 
 
+def to_bool(val) -> bool:
+    """ Accepts a boolean or str value, and returns the boolean equivalent, converting if necessary """
+
+    if type(val) == bool:
+        return val
+    else:
+        return bool(strtobool(val))
+
+
+def str_to_list_of_ints(val) -> List[int]:
+    """Accepts a str or list, returns list of ints. Specifically useful when 
+    num_hidden_units of a set of layers is specified as a list of ints"""
+    if type(val) == list:
+        return val
+    else:
+
+        return [int(v) for v in json.loads(val)]
+
+
+def override_model_params_with_hyperdrive_params(
+    model_params: Dict[str, Any], hyperdrive_params: Dict[str, str]
+):
+    """
+    Overrides the model parameters, with those from hyperdrive_params. hyperdrive_params contains hyperparameter values as strings. 
+	The correct type is inferred from the model params (only the value is used from hyperdrive_params)
+    """
+    for k in hyperdrive_params.keys():
+        if k not in model_params:
+            raise ValueError(f"key {k} not found in model_params: {model_params}")
+
+        if type(model_params[k]) == bool:
+            model_params[k] = to_bool(hyperdrive_params[k])
+        elif type(model_params[k]) == int:
+            model_params[k] = int(hyperdrive_params[k])
+        elif type(model_params[k]) == float:
+            model_params[k] = float(hyperdrive_params[k])
+        elif type(model_params[k]) == list and type(model_params[k][0]) == int:
+            model_params[k] = str_to_list_of_ints(hyperdrive_params[k])
+    return
+
+
 def get_model(
     msg_passing_implementation: str,
     task_name: str,
@@ -143,9 +185,6 @@ def get_model(
             f"  Model parameters overridden from CLI: {cli_model_hyperparameter_overrides}"
         )
     if len(hyperdrive_hyperparameter_overrides) > 0:
-        # Only require azure_ml if needed:
-        from ..azure_ml.utils import override_model_params_with_hyperdrive_params
-
         override_model_params_with_hyperdrive_params(
             model_params, hyperdrive_hyperparameter_overrides
         )

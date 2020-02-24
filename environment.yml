@@ -1,31 +1,15 @@
 name: tf2-gnn-env
 channels:
   - defaults
-  - plotly
 dependencies:
   - pip
   - python==3.7
-  - matplotlib
   - numpy
   - tensorflow>=2.0.0
-  - tqdm
   # For AML Hyperdrive
-  - plotly
-  - plotly-orca
   - psutil
   - pip:
     - docopt
     - dpu-utils>=0.2.7
     - h5py
-    - matplotlib
-    - azureml-core
-    - azureml-dataprep
-    - azureml-sdk
-    # For AML hyperdrive
-    - azureml-widgets
-    - ipywidgets
-    - pandas
-    - azure-keyvault-secrets
-    - azure-identity
-
 
