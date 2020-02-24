@@ -6,7 +6,7 @@ import tensorflow as tf
 from dpu_utils.utils import run_and_debug, RichPath
 
 from tf2_gnn import DataFold, GraphDataset, GraphTaskModel
-from tf2_gnn.utils.training_utils import get_model_and_dataset
+from tf2_gnn.cli_utils.training_utils import get_model_and_dataset
 
 
 def test(

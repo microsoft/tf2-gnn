@@ -1,7 +1,7 @@
 """Functions to convert from string parameters to their values."""
-
 import tensorflow as tf
-from tf2_gnn.utils.activation import gelu
+
+from .activation import gelu
 
 
 def get_aggregation_function(aggregation_fn_name: str):

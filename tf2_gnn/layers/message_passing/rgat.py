@@ -2,9 +2,9 @@
 from typing import Dict, List, Tuple, Any
 
 import tensorflow as tf
+from dpu_utils.tf2utils import unsorted_segment_log_softmax
 
 from .message_passing import MessagePassing, MessagePassingInput, register_message_passing_implementation
-from tf2_gnn.utils.unsorted_segment_ops import unsorted_segment_log_softmax
 
 
 @register_message_passing_implementation

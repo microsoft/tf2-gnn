@@ -9,7 +9,9 @@ import numpy as np
 import tensorflow as tf
 from dpu_utils.utils import RichPath
 
-from tf2_gnn import DataFold, GraphDataset, GraphTaskModel, get_known_message_passing_classes
+from ..data import DataFold, GraphDataset
+from ..layers import get_known_message_passing_classes
+from ..models import GraphTaskModel
 from .model_utils import save_model, load_weights_verbosely, get_model_and_dataset
 from .task_utils import get_known_tasks
 

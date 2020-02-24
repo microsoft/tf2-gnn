@@ -1,7 +1,7 @@
 import pickle
 from typing import Dict, Any, Optional, Type
 
-from tf2_gnn import GraphDataset
+from ..data import GraphDataset
 from .task_utils import task_name_to_dataset_class
 
 

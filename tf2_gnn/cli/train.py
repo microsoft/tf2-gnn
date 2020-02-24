@@ -3,7 +3,7 @@ import os
 import tensorflow as tf
 from dpu_utils.utils import run_and_debug
 
-from tf2_gnn.utils import get_train_cli_arg_parser, run_train_from_args
+from tf2_gnn.cli_utils import get_train_cli_arg_parser, run_train_from_args
 
 
 def run():
