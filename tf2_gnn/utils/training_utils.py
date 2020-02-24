@@ -24,7 +24,17 @@ def make_run_id(model_name: str, task_name: str, run_name: Optional[str] = None)
         return "%s_%s__%s" % (model_name, task_name, time.strftime("%Y-%m-%d_%H-%M-%S"))
 
 
-def save_model(save_file, model: GraphTaskModel, dataset: GraphDataset) -> None:
+def get_model_file_path(model_path: str, target_suffix: str):
+    assert target_suffix in ("hdf5", "pkl")
+    if model_path.endswith(".hdf5"):
+        return model_path[:-4] + target_suffix
+    elif model_path.endswith(".pkl"):
+        return model_path[:-3] + target_suffix
+    else:
+        raise ValueError(f"Model path has to end in hdf5/pkl, which is not the case for {model_path}!")
+
+
+def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> None:
     data_to_store = {
         "model_class": model.__class__,
         "model_params": model._params,
@@ -32,14 +42,16 @@ def save_model(save_file, model: GraphTaskModel, dataset: GraphDataset) -> None:
         "dataset_params": dataset._params,
         "dataset_metadata": dataset._metadata,
     }
-    with open(save_file, "wb") as out_file:
+    pkl_file = get_model_file_path(save_file, "pkl")
+    hdf5_file = get_model_file_path(save_file, "hdf5")
+    with open(pkl_file, "wb") as out_file:
         pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
-    hdf5_file = save_file[:-3] + "hdf5"
     model.save_weights(hdf5_file, save_format="h5")
-    print(f"   (Stored model metadata to {save_file} and weights to {hdf5_file})")
+    print(f"   (Stored model metadata to {pkl_file} and weights to {hdf5_file})")
 
 
-def load_weights_verbosely(model_weights_file: str, model: GraphTaskModel):
+def load_weights_verbosely(save_file: str, model: GraphTaskModel):
+    hdf5_save_file = get_model_file_path(save_file, "hdf5")
     var_name_to_variable = {}
     var_names_unique = True
     for var in model.variables:
@@ -61,7 +73,7 @@ def load_weights_verbosely(model_weights_file: str, model: GraphTaskModel):
         else:
             var_name_to_weights[name] = np.array(item)
 
-    with h5py.File(model_weights_file, mode='r') as data_hdf5:
+    with h5py.File(hdf5_save_file, mode='r') as data_hdf5:
         # For some reason, the first layer of attributes is auto-generated names instead of actual names:
         for model_sublayer in data_hdf5.values():
             model_sublayer.visititems(hdf5_item_visitor)
@@ -145,7 +157,7 @@ def get_model(
 
 
 def load_dataset_for_prediction(trained_model_file: str):
-    with open(trained_model_file, "rb") as in_file:
+    with open(get_model_file_path(trained_model_file, "pkl"), "rb") as in_file:
         data_to_load = pickle.load(in_file)
     dataset_class : Type[GraphDataset] = data_to_load["dataset_class"]
 
@@ -156,7 +168,7 @@ def load_dataset_for_prediction(trained_model_file: str):
 
 
 def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
-    with open(trained_model_file, "rb") as in_file:
+    with open(get_model_file_path(trained_model_file, "pkl"), "rb") as in_file:
         data_to_load = pickle.load(in_file)
     model_class : Type[GraphTaskModel] = data_to_load["model_class"]
 
@@ -171,9 +183,8 @@ def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
     data_description = dataset.get_batch_tf_data_description()
     model.build(data_description.batch_features_shapes)
 
-    trained_model_weights_file = trained_model_file[:-3] + "hdf5"
-    print(f"Restoring model weights from {trained_model_weights_file}.")
-    load_weights_verbosely(trained_model_weights_file, model)
+    print(f"Restoring model weights from {trained_model_file}.")
+    load_weights_verbosely(trained_model_file, model)
 
     return model
 
@@ -195,7 +206,7 @@ def get_model_and_dataset(
     # case of a trained model file being passed, where the entire model should be loaded, 
     # a new class and dataset type are not required
     if trained_model_file and not load_weights_only:
-        with open(trained_model_file, "rb") as in_file:
+        with open(get_model_file_path(trained_model_file, "pkl"), "rb") as in_file:
             data_to_load = pickle.load(in_file)
         model_class = data_to_load["model_class"]
         dataset_class = data_to_load["dataset_class"]
@@ -257,9 +268,8 @@ def get_model_and_dataset(
 
     # If needed, load weights for model:
     if trained_model_file:
-        trained_model_weights_file = trained_model_file[:-3] + "hdf5"
-        print(f"Restoring model weights from {trained_model_weights_file}.")
-        load_weights_verbosely(trained_model_weights_file, model)
+        print(f"Restoring model weights from {trained_model_file}.")
+        load_weights_verbosely(trained_model_file, model)
 
     return dataset, model
 
@@ -390,7 +400,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
         log(f"Loading data from {data_path}.")
         dataset.load_data(data_path, {DataFold.TEST})
         log(f"Restoring best model state from {trained_model_path}.")
-        load_weights_verbosely(trained_model_path[:-3] + "hdf5", model)
+        load_weights_verbosely(trained_model_path, model)
         test_data = dataset.get_tensorflow_dataset(DataFold.TEST)
         _, _, test_results = model.run_one_epoch(test_data, training=False, quiet=args.quiet)
         test_metric, test_metric_string = model.compute_epoch_metrics(test_results)
