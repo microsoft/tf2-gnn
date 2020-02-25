@@ -13,6 +13,7 @@ from ..data import DataFold, GraphDataset
 from ..models import GraphTaskModel
 from .dataset_utils import get_dataset, get_model_file_path
 from .task_utils import task_name_to_model_class
+from .param_helpers import override_model_params_with_hyperdrive_params
 
 
 def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> None:
