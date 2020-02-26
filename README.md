@@ -204,6 +204,13 @@ These can be registered (and then used by name) using the utilities in
 `tf2_gnn.utils.task_utils` (where a few default tasks are defined as well) and then
 used in tools such as `tf2_gnn_train`.
 
+# Authors
+
+* [Henry Jackson-Flux](mailto:Henry.JacksonFlux@microsoft.com)
+* [Marc Brockschmidt](mailto:Marc.Brockschmidt@microsoft.com)
+* [Megan Stanley](mailto:t-mestan@microsoft.com)
+* [Pashmina Cameron](mailto:Pashmina.Cameron@microsoft.com)
+
 
 # References
 
