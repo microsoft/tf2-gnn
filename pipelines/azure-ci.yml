@@ -1,13 +1,13 @@
-# Test TF2-GNN package
+# Test TF2-GNN package and build sdist to be consumed by release pipeline
 trigger:
   branches:
     include:
-      - '*'  # must quote since "*" is a YAML reserved character; we want a string
+      - '*'
   paths:
     include:
       - tf2_gnn/*
       - setup.py
-      - build/*.yml
+      - pipelines/*.yml
 
 jobs:
 - job: 'Test'
@@ -15,11 +15,19 @@ jobs:
   pool:
     vmImage: 'ubuntu-latest'
 
+  strategy:
+    matrix:
+      Python36:
+        python.version: '3.6'
+      Python37:
+        python.version: '3.7'
+    maxParallel: 4
+
   steps:
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: '3.6'
-    displayName: 'Use Python 3.6'
+      versionSpec: '$(python.version)'
+    displayName: 'Set python version to $(python.version)'
 
   - script: python -m pip install --upgrade pip && pip install numpy docopt dpu-utils tensorflow azureml-core
     displayName: 'Install dependencies'
@@ -36,6 +44,17 @@ jobs:
     condition: succeededOrFailed()
     displayName: 'Publish test results'
 
+- job: 'Build and Publish Artifact'
+  dependsOn: 'Test'
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.6'
+    displayName: 'Set python version to 3.6'
+
   - task: ComponentGovernanceComponentDetection@0
     inputs:
       scanType: 'Register'
@@ -47,3 +66,12 @@ jobs:
       ArtifactName: 'CodeAnalysisLogs'
       ArtifactType: 'Container'
 
+  - script: |
+      python setup.py sdist
+    displayName: 'Build sdist'
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish artifact: dist'
+    inputs:
+      pathtoPublish: './dist'
+      artifactName: 'sdist-output'
