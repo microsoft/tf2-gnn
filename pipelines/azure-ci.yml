@@ -44,7 +44,7 @@ jobs:
     condition: succeededOrFailed()
     displayName: 'Publish test results'
 
-- job: 'Build and Publish Artifact'
+- job: 'Build_and_Publish_Artifact'
   dependsOn: 'Test'
   pool:
     vmImage: 'ubuntu-latest'
