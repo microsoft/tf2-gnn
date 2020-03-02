@@ -1,9 +1,7 @@
 """GNN Encoder class."""
-from itertools import count
 from typing import Any, Dict, NamedTuple, List, Tuple, Optional
 
 import tensorflow as tf
-from dpu_utils.tf2utils import MLP
 
 from tf2_gnn.utils.param_helpers import get_activation_function
 from .message_passing import (
@@ -18,11 +16,6 @@ from .graph_global_exchange import (
     GraphGlobalGRUExchange,
     GraphGlobalMLPExchange,
 )
-from .nodes_to_graph_representation import (
-    WeightedSumGraphRepresentation,
-    NodesToGraphRepresentationInput,
-)
-
 
 
 class GNNInput(NamedTuple):
