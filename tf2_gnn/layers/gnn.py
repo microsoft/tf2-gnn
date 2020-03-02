@@ -201,6 +201,22 @@ class GNN(tf.keras.layers.Layer):
 
         super().build(tensor_shapes)
 
+        # The following is needed to work around a limitation in the @tf.function annotation.
+        # (See https://github.com/tensorflow/tensorflow/issues/32457 for a related issue,
+        #  though there are many more).
+        # Our aim is to trace the `call` function once and for all. However, as the first
+        # dimension of node features and adjacency lists keeps changing between batches (with
+        # the number of nodes/edges in the batch), generalisation doesn't work automatically.
+        # Instead, we have to specify the input spec explicitly; but as this depends on a
+        # build-time constant (the number of edges), we cannot do that by just using @tf.function.
+        # Instead, we construct the TensorSpec explicitly, and then use setattr to wrap
+        # our function using tf.function.
+        #
+        # Finally, the `return_all_representations` option changes the shape of the return values,
+        # but a tf.function-traced function must return the same shape on all code paths. To
+        # handle this, we let the core function _always_ return all representations (and trace
+        # that for performance reasons), and then use a thin wrapper `call` function to drop
+        # the unneeded return value if needed.
         internal_call_input_spec = (
             GNNInput(
                 node_features=tf.TensorSpec(shape=variable_node_features_shape, dtype=tf.float32),
