@@ -1,9 +1,7 @@
 """GNN Encoder class."""
-from itertools import count
 from typing import Any, Dict, NamedTuple, List, Tuple, Optional
 
 import tensorflow as tf
-from dpu_utils.tf2utils import MLP
 
 from tf2_gnn.utils.param_helpers import get_activation_function
 from .message_passing import (
@@ -18,11 +16,6 @@ from .graph_global_exchange import (
     GraphGlobalGRUExchange,
     GraphGlobalMLPExchange,
 )
-from .nodes_to_graph_representation import (
-    WeightedSumGraphRepresentation,
-    NodesToGraphRepresentationInput,
-)
-
 
 
 class GNNInput(NamedTuple):
@@ -208,7 +201,23 @@ class GNN(tf.keras.layers.Layer):
 
         super().build(tensor_shapes)
 
-        call_input_spec = (
+        # The following is needed to work around a limitation in the @tf.function annotation.
+        # (See https://github.com/tensorflow/tensorflow/issues/32457 for a related issue,
+        #  though there are many more).
+        # Our aim is to trace the `call` function once and for all. However, as the first
+        # dimension of node features and adjacency lists keeps changing between batches (with
+        # the number of nodes/edges in the batch), generalisation doesn't work automatically.
+        # Instead, we have to specify the input spec explicitly; but as this depends on a
+        # build-time constant (the number of edges), we cannot do that by just using @tf.function.
+        # Instead, we construct the TensorSpec explicitly, and then use setattr to wrap
+        # our function using tf.function.
+        #
+        # Finally, the `return_all_representations` option changes the shape of the return values,
+        # but a tf.function-traced function must return the same shape on all code paths. To
+        # handle this, we let the core function _always_ return all representations (and trace
+        # that for performance reasons), and then use a thin wrapper `call` function to drop
+        # the unneeded return value if needed.
+        internal_call_input_spec = (
             GNNInput(
                 node_features=tf.TensorSpec(shape=variable_node_features_shape, dtype=tf.float32),
                 adjacency_lists=tuple(
@@ -218,11 +227,11 @@ class GNN(tf.keras.layers.Layer):
                 node_to_graph_map=tf.TensorSpec(shape=(None,), dtype=tf.int32),
                 num_graphs=tf.TensorSpec(shape=(), dtype=tf.int32),
             ),
-            tf.TensorSpec(shape=(), dtype=tf.bool),
+            tf.TensorSpec(shape=(), dtype=tf.bool)
         )
-        setattr(self, "call", tf.function(func=self.call, input_signature=call_input_spec))
+        setattr(self, "_internal_call", tf.function(func=self._internal_call, input_signature=internal_call_input_spec))
 
-    def call(self, inputs: GNNInput, training: bool = False):
+    def call(self, inputs: GNNInput, training: bool = False, return_all_representations: bool = False):
         """
         Args:
             inputs: A GNNInput containing the following fields:
@@ -241,18 +250,37 @@ class GNN(tf.keras.layers.Layer):
 
             training: A bool representing whether the model is training or evaluating.
 
+            return_all_representations: A bool indicating whether to return all (initial,
+                intermediate, and final) GNN results as well.
+
         Returns:
+            If return_all_representations is False (the default):
             A tensor of shape [V, hidden_dim], where hidden_dim was defined in the layer
             initialisation. The tensor represents the encoding of the initial node_features by the
             GNN framework.
 
+            If return_all_representations is True:
+            A pair, first element as for return_all_representations=False, second element a  list
+            of Tensors of shape [V, hidden_dim], where the first element is the original GNN
+            input (after a potential projection layer) and the remaining elements are the
+            output of all GNN layers (without dropout, residual connections, dense layers 
+            or layer norm applied).
         """
+        cur_node_representations, all_node_representations = self._internal_call(inputs, training)
+
+        if return_all_representations:
+            return cur_node_representations, all_node_representations
+
+        return cur_node_representations
+
+    def _internal_call(self, inputs: GNNInput, training: bool = False):
         initial_node_features: tf.Tensor = inputs.node_features
         adjacency_lists = inputs.adjacency_lists
         cur_node_representations = self._initial_projection_layer(initial_node_features)
 
         # Layer loop.
         last_node_representations = cur_node_representations
+        all_node_representations = [cur_node_representations]
         for layer_idx, mp_layer in enumerate(self._mp_layers):
             if training:
                 cur_node_representations = tf.nn.dropout(
@@ -274,6 +302,7 @@ class GNN(tf.keras.layers.Layer):
                 ),
                 training=training,
             )
+            all_node_representations.append(cur_node_representations)
 
             if layer_idx and layer_idx % self._global_exchange_every_num_layers == 0:
                 cur_node_representations = self._global_exchange_layers[str(layer_idx)](
@@ -296,7 +325,8 @@ class GNN(tf.keras.layers.Layer):
                 cur_node_representations = self._dense_layers[str(layer_idx)](
                     cur_node_representations, training=training
                 )
-        return cur_node_representations
+
+        return cur_node_representations, all_node_representations
 
 
 if __name__ == "__main__":
