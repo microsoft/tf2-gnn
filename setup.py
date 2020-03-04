@@ -10,7 +10,7 @@ with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
 
 setuptools.setup(
     name="tf2_gnn",
-    version="1.1.0",
+    version="1.2.0",
     license="MIT",
     author="Marc Brockschmidt",
     author_email="mabrocks@microsoft.com",

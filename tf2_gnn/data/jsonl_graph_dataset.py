@@ -61,10 +61,13 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
             self._node_feature_shape = (len(some_data_fold[0].node_features[0]),)
         return self._node_feature_shape
 
-    def load_data(self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None) -> None:
-        """Load the data from disk."""
-        logger.info(f"Starting to load data from {path}.")
+    def load_metadata(self, path: RichPath) -> None:
+        """Load the metadata for a dataset (such as vocabularies, names of properties, ...)
+        from a path on disk.
 
+        Note: Implementors needing to act on metadata information before loading any actual data
+        should override this method.
+        """
         if self.metadata == {}:
             metadata_path = path.join("metadata.pkl.gz")
             if metadata_path.exists():
@@ -72,6 +75,11 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
                 self._metadata = metadata_path.read_by_file_suffix()
         else:
             logger.warning("Using metadata passed to constructor, not metadata stored with data.")
+
+    def load_data(self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None) -> None:
+        """Load the data from disk."""
+        logger.info(f"Starting to load data from {path}.")
+        self.load_metadata(path)
 
         # If we haven't defined what folds to load, load all:
         if folds_to_load is None:
