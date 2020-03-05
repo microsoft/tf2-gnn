@@ -42,4 +42,8 @@ def override_model_params_with_hyperdrive_params(
             model_params[k] = float(hyperdrive_params[k])
         elif type(model_params[k]) == list and type(model_params[k][0]) == int:
             model_params[k] = str_to_list_of_ints(hyperdrive_params[k])
+        elif type(model_params[k]) == str:
+            model_params[k] = hyperdrive_params[k]
+        else:
+            raise ValueError(f"Unknown hyperparameter type {type(model_params[k])} for hyperparameter {k}.")
     return
