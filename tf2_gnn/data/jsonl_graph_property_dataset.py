@@ -1,5 +1,5 @@
 """General dataset class for datasets with a numeric property stored as JSONLines files."""
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
 import numpy as np
 import tensorflow as tf
@@ -34,7 +34,12 @@ class GraphWithPropertySample(GraphSample):
         )
 
 
-class JsonLGraphPropertyDataset(JsonLGraphDataset[GraphWithPropertySample]):
+GraphWithPropertySampleType = TypeVar(
+    "GraphWithPropertySampleType", bound=GraphWithPropertySample
+)
+
+
+class JsonLGraphPropertyDataset(JsonLGraphDataset[GraphWithPropertySampleType]):
     """
     General class representing pre-split datasets in JSONLines format.
     Concretely, this class expects the following:
@@ -67,7 +72,9 @@ class JsonLGraphPropertyDataset(JsonLGraphDataset[GraphWithPropertySample]):
         super().__init__(params, metadata=metadata)
         self._threshold_for_classification = params["threshold_for_classification"]
 
-    def _process_raw_datapoint(self, datapoint: Dict[str, Any]) -> GraphWithPropertySample:
+    def _process_raw_datapoint(
+        self, datapoint: Dict[str, Any]
+    ) -> GraphWithPropertySampleType:
         node_features = datapoint["graph"]["node_features"]
         type_to_adj_list, type_to_num_incoming_edges = self._process_raw_adjacency_lists(
             raw_adjacency_lists=datapoint["graph"]["adjacency_lists"],
@@ -91,7 +98,7 @@ class JsonLGraphPropertyDataset(JsonLGraphDataset[GraphWithPropertySample]):
         return new_batch
 
     def _add_graph_to_batch(
-        self, raw_batch: Dict[str, Any], graph_sample: GraphWithPropertySample
+        self, raw_batch: Dict[str, Any], graph_sample: GraphWithPropertySampleType
     ) -> None:
         super()._add_graph_to_batch(raw_batch, graph_sample)
         raw_batch["target_value"].append(graph_sample.target_value)
