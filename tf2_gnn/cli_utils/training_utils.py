@@ -3,10 +3,11 @@ import os
 import random
 import sys
 import time
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, Any
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.training.tracking import data_structures as tf_data_structures
 from dpu_utils.utils import RichPath
 
 from ..data import DataFold, GraphDataset
@@ -94,6 +95,15 @@ def train(
     return save_file
 
 
+def unwrap_tf_tracked_data(data: Any) -> Any:
+    if isinstance(data, (tf_data_structures.ListWrapper, list)):
+        return [unwrap_tf_tracked_data(e) for e in data]
+    elif isinstance(data, (tf_data_structures._DictWrapper, dict)):
+        return {k: unwrap_tf_tracked_data(v) for k, v in data.items()}
+    else:
+        return data
+
+
 def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str] = {}) -> None:
     # Get the housekeeping going and start logging:
     os.makedirs(args.save_dir, exist_ok=True)
@@ -124,8 +134,8 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
     except ValueError as err:
         print(err.args)
 
-    log(f"Dataset parameters: {json.dumps(dict(dataset._params))}")
-    log(f"Model parameters: {json.dumps(dict(model._params))}")
+    log(f"Dataset parameters: {json.dumps(unwrap_tf_tracked_data(dataset._params))}")
+    log(f"Model parameters: {json.dumps(unwrap_tf_tracked_data(model._params))}")
 
     if args.azureml_logging:
         from azureml.core.run import Run
