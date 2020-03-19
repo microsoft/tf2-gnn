@@ -23,6 +23,8 @@ def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> 
         "dataset_class": dataset.__class__,
         "dataset_params": dataset._params,
         "dataset_metadata": dataset._metadata,
+        "num_edge_types": dataset.num_edge_types,
+        "node_feature_shape": dataset.node_feature_shape,
     }
     pkl_file = get_model_file_path(save_file, "pkl")
     hdf5_file = get_model_file_path(save_file, "hdf5")
