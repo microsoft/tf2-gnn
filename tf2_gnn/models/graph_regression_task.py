@@ -27,7 +27,7 @@ class GraphRegressionTask(GraphTaskModel):
         self._node_to_graph_aggregation = None
 
     def build(self, input_shapes):
-        with tf.name_scope(self._name):
+        with tf.name_scope(self.__class__.__name__):
             self._node_to_graph_repr_layer = WeightedSumGraphRepresentation(
                 graph_representation_size=self._params["graph_aggregation_num_heads"],
                 num_heads=self._params["graph_aggregation_num_heads"],

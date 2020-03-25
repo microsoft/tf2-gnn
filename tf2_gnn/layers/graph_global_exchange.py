@@ -116,7 +116,7 @@ class GraphGlobalMeanExchange(GraphGlobalExchange):
         super().__init__(hidden_dim, weighting_fun, num_heads, dropout_rate)
 
     def build(self, tensor_shapes: GraphGlobalExchangeInput):
-        with tf.name_scope(self._name):
+        with tf.name_scope(self.__class__.__name__):
             super().build(tensor_shapes)
 
     def call(self, inputs: GraphGlobalExchangeInput, training: bool = False):
@@ -138,7 +138,7 @@ class GraphGlobalGRUExchange(GraphGlobalExchange):
         super().__init__(hidden_dim, weighting_fun, num_heads, dropout_rate)
 
     def build(self, tensor_shapes: GraphGlobalExchangeInput):
-        with tf.name_scope(self._name):
+        with tf.name_scope(self.__class__.__name__):
             self._gru_cell = tf.keras.layers.GRUCell(units=self._hidden_dim)
             self._gru_cell.build(tf.TensorShape((None, self._hidden_dim)))
             super().build(tensor_shapes)
@@ -167,7 +167,7 @@ class GraphGlobalMLPExchange(GraphGlobalExchange):
         super().__init__(hidden_dim, weighting_fun, num_heads, dropout_rate)
 
     def build(self, tensor_shapes: GraphGlobalExchangeInput):
-        with tf.name_scope(self._name):
+        with tf.name_scope(self.__class__.__name__):
             self._mlp = MLP(out_size=self._hidden_dim)
             self._mlp.build(tf.TensorShape((None, 2 * self._hidden_dim)))
             super().build(tensor_shapes)
