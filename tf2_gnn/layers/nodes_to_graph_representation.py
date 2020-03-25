@@ -1,6 +1,6 @@
 """Graph representation aggregation layer."""
 from abc import abstractmethod
-from typing import Dict, List, NamedTuple
+from typing import List, NamedTuple
 
 import tensorflow as tf
 from dpu_utils.tf2utils import MLP, get_activation_function_by_name, unsorted_segment_softmax
@@ -81,8 +81,9 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
             graph_representation_size: Size of the computed graph representation.
             num_heads: Number of independent heads to use to compute weights.
             weighting_fun: "sigmoid" ([0, 1] weights for each node computed from its
-                representation) or "softmax" ([0, 1] weights for each node computed
-                from all nodes in same graph).
+                representation), "softmax" ([0, 1] weights for each node computed
+                from all nodes in same graph), "average" (weight is fixed to 1/num_nodes),
+                or "none" (weight is fixed to 1).
             scoring_mlp_layers: MLP layer structure for computing raw scores turned into
                 weights.
             scoring_mlp_activation_fun: MLP activcation function for computing raw scores
@@ -100,12 +101,14 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
             graph_representation_size % num_heads == 0
         ), f"Number of heads {num_heads} needs to divide final representation size {graph_representation_size}!"
         assert weighting_fun.lower() in {
+            "none",
+            "average",
             "softmax",
             "sigmoid",
-        }, f"Weighting function {weighting_fun} unknown, {{'softmax', 'sigmoid'}} supported."
+        }, f"Weighting function {weighting_fun} unknown, {{'softmax', 'sigmoid', 'none', 'average'}} supported."
 
         self._num_heads = num_heads
-        self._weighting_fun = weighting_fun
+        self._weighting_fun = weighting_fun.lower()
         self._scoring_mlp_layers = scoring_mlp_layers
         self._scoring_mlp_activation_fun = get_activation_function_by_name(
             scoring_mlp_activation_fun
@@ -119,14 +122,15 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
 
     def build(self, input_shapes: NodesToGraphRepresentationInput):
         with tf.name_scope("WeightedSumGraphRepresentation"):
-            self._scoring_mlp = MLP(
-                out_size=self._num_heads,
-                hidden_layers=self._scoring_mlp_layers,
-                activation_fun=self._scoring_mlp_activation_fun,
-                dropout_rate=self._scoring_mlp_dropout_rate,
-                name="ScoringMLP",
-            )
-            self._scoring_mlp.build(tf.TensorShape((None, input_shapes.node_embeddings[-1])))
+            if self._weighting_fun not in ("none", "average"):
+                self._scoring_mlp = MLP(
+                    out_size=self._num_heads,
+                    hidden_layers=self._scoring_mlp_layers,
+                    activation_fun=self._scoring_mlp_activation_fun,
+                    dropout_rate=self._scoring_mlp_dropout_rate,
+                    name="ScoringMLP",
+                )
+                self._scoring_mlp.build(tf.TensorShape((None, input_shapes.node_embeddings[-1])))
 
             self._transformation_mlp = MLP(
                 out_size=self._graph_representation_size,
@@ -151,22 +155,23 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
     )
     def call(self, inputs: NodesToGraphRepresentationInput, training: bool = False):
         # (1) compute weights for each node/head pair:
-        scores = self._scoring_mlp(inputs.node_embeddings, training=training)  # Shape [V, H]
-        if self._weighting_fun.lower() == "sigmoid":
-            weights = tf.nn.sigmoid(scores)  # Shape [V, H]
-        elif self._weighting_fun.lower() == "softmax":
-            weights_per_head = []
-            for head_idx in range(self._num_heads):
-                head_scores = scores[:, head_idx]  # Shape [V]
-                head_weights = unsorted_segment_softmax(
-                    logits=head_scores,
-                    segment_ids=inputs.node_to_graph_map,
-                    num_segments=inputs.num_graphs,
-                )  # Shape [V]
-                weights_per_head.append(tf.expand_dims(head_weights, -1))
-            weights = tf.concat(weights_per_head, axis=1)  # Shape [V, H]
-        else:
-            raise ValueError()
+        if self._weighting_fun not in ("none", "average"):
+            scores = self._scoring_mlp(inputs.node_embeddings, training=training)  # Shape [V, H]
+            if self._weighting_fun == "sigmoid":
+                weights = tf.nn.sigmoid(scores)  # Shape [V, H]
+            elif self._weighting_fun == "softmax":
+                weights_per_head = []
+                for head_idx in range(self._num_heads):
+                    head_scores = scores[:, head_idx]  # Shape [V]
+                    head_weights = unsorted_segment_softmax(
+                        logits=head_scores,
+                        segment_ids=inputs.node_to_graph_map,
+                        num_segments=inputs.num_graphs,
+                    )  # Shape [V]
+                    weights_per_head.append(tf.expand_dims(head_weights, -1))
+                weights = tf.concat(weights_per_head, axis=1)  # Shape [V, H]
+            else:
+                raise ValueError()
 
         # (2) compute representations for each node/head pair:
         node_reprs = self._transformation_mlp(
@@ -177,14 +182,30 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
             shape=(-1, self._num_heads, self._graph_representation_size // self._num_heads),
         )  # Shape [V, H, GD//H]
 
-        # (3) weight representations and aggregate by graph:
-        weights = tf.expand_dims(weights, -1)  # Shape [V, H, 1]
-        weighted_node_reprs = weights * node_reprs  # Shape [V, H, GD//H]
-        weighted_node_reprs = tf.reshape(
-            weighted_node_reprs, shape=(-1, self._graph_representation_size)
-        )  # Shape [V, GD]
-        graph_reprs = tf.math.segment_sum(
-            data=weighted_node_reprs, segment_ids=inputs.node_to_graph_map
-        )  # Shape [G, GD]
+        # (3) if necessary, weight representations and aggregate by graph:
+        if self._weighting_fun == "none":
+            node_reprs = tf.reshape(
+                node_reprs, shape=(-1, self._graph_representation_size)
+            )  # Shape [V, GD]
+            graph_reprs = tf.math.segment_sum(
+                data=node_reprs, segment_ids=inputs.node_to_graph_map
+            )  # Shape [G, GD]
+        elif self._weighting_fun == "average":
+            node_reprs = tf.reshape(
+                node_reprs, shape=(-1, self._graph_representation_size)
+            )  # Shape [V, GD]
+            graph_reprs = tf.math.segment_mean(
+                data=node_reprs, segment_ids=inputs.node_to_graph_map
+            )  # Shape [G, GD]
+        else:
+            weights = tf.expand_dims(weights, -1)  # Shape [V, H, 1]
+            weighted_node_reprs = weights * node_reprs  # Shape [V, H, GD//H]
+
+            weighted_node_reprs = tf.reshape(
+                weighted_node_reprs, shape=(-1, self._graph_representation_size)
+            )  # Shape [V, GD]
+            graph_reprs = tf.math.segment_sum(
+                data=weighted_node_reprs, segment_ids=inputs.node_to_graph_map
+            )  # Shape [G, GD]
 
         return graph_reprs
