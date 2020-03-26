@@ -34,7 +34,12 @@ def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> 
     print(f"   (Stored model metadata to {pkl_file} and weights to {hdf5_file})")
 
 
-def load_weights_verbosely(save_file: str, model: GraphTaskModel):
+def load_weights_verbosely(
+    save_file: str,
+    model: GraphTaskModel,
+    warn_about_initialisations: bool = True,
+    warn_about_ignored: bool = True,
+):
     hdf5_save_file = get_model_file_path(save_file, "hdf5")
     var_name_to_variable = {}
     var_names_unique = True
@@ -72,13 +77,15 @@ def load_weights_verbosely(save_file: str, model: GraphTaskModel):
     for var_name, tfvar in var_name_to_variable.items():
         saved_weight = var_name_to_weights.get(var_name)
         if saved_weight is None:
-            print(f"I: Weights for {var_name} freshly initialised.")
+            if warn_about_initialisations:
+                print(f"I: Weights for {var_name} freshly initialised.")
         else:
             tfvar_weight_tuples.append((tfvar, saved_weight))
 
-    for var_name in var_name_to_weights.keys():
-        if var_name not in var_name_to_variable:
-            print(f"I: Model does not use saved weights for {var_name}.")
+    if warn_about_ignored:
+        for var_name in var_name_to_weights.keys():
+            if var_name not in var_name_to_variable:
+                print(f"I: Model does not use saved weights for {var_name}.")
 
     K.batch_set_value(tfvar_weight_tuples)
 

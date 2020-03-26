@@ -69,15 +69,14 @@ class GNN_FiLM(GNN_Edge_MLP):
         adjacency_list_shapes = input_shapes.adjacency_lists
         num_edge_types = len(adjacency_list_shapes)
 
-        with tf.name_scope(self._name):
-            for i in range(num_edge_types):
-                with tf.name_scope(f"edge_type_{i}-FiLM"):
-                    film_mlp = MLP(
-                        out_size=2 * self._hidden_dim,
-                        hidden_layers=self._film_parameter_MLP_hidden_layers,
-                    )
-                    film_mlp.build(tf.TensorShape((None, node_embedding_shapes[-1])))
-                    self._edge_type_film_layer_computations.append(film_mlp)
+        for i in range(num_edge_types):
+            with tf.name_scope(f"edge_type_{i}-FiLM"):
+                film_mlp = MLP(
+                    out_size=2 * self._hidden_dim,
+                    hidden_layers=self._film_parameter_MLP_hidden_layers,
+                )
+                film_mlp.build(tf.TensorShape((None, node_embedding_shapes[-1])))
+                self._edge_type_film_layer_computations.append(film_mlp)
 
         super().build(input_shapes)
 

@@ -38,7 +38,7 @@ class NodeMulticlassTask(GraphTaskModel):
         self._num_labels = dataset.num_node_target_labels
 
     def build(self, input_shapes):
-        with tf.name_scope(self._name):
+        with tf.name_scope(self.__class__.__name__):
             self.node_to_labels_layer = tf.keras.layers.Dense(units=self._num_labels, use_bias=True)
             self.node_to_labels_layer.build((None, self._params["gnn_hidden_dim"]))
         super().build(input_shapes)

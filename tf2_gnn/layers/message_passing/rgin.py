@@ -76,14 +76,13 @@ class RGIN(GNN_Edge_MLP):
 
     def build(self, input_shapes: MessagePassingInput):
         node_embedding_shapes = input_shapes.node_embeddings
-        with tf.name_scope(self._name):
-            if self._num_aggr_MLP_hidden_layers is not None:
-                with tf.name_scope("aggregation_MLP"):
-                    self._aggregation_mlp = MLP(
-                        out_size=self._hidden_dim,
-                        hidden_layers=[self._hidden_dim] * self._num_aggr_MLP_hidden_layers,
-                    )
-                    self._aggregation_mlp.build(tf.TensorShape((None, self._hidden_dim)))
+        if self._num_aggr_MLP_hidden_layers is not None:
+            with tf.name_scope("aggregation_MLP"):
+                self._aggregation_mlp = MLP(
+                    out_size=self._hidden_dim,
+                    hidden_layers=[self._hidden_dim] * self._num_aggr_MLP_hidden_layers,
+                )
+                self._aggregation_mlp.build(tf.TensorShape((None, self._hidden_dim)))
         super().build(input_shapes)
 
     def _compute_new_node_embeddings(
