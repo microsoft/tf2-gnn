@@ -83,7 +83,7 @@ class GraphTaskModel(tf.keras.Model):
         """
         pass
 
-    def call(self, inputs, training: bool):
+    def compute_final_node_representations(self, inputs, training: bool):
         # Pack input data from keys back into a tuple:
         adjacency_lists: Tuple[tf.Tensor, ...] = tuple(
             inputs[f"adjacency_list_{edge_type_idx}"]
@@ -104,7 +104,11 @@ class GraphTaskModel(tf.keras.Model):
             training=training,
             return_all_representations=self._use_intermediate_gnn_results
         )
-        return self.compute_task_output(inputs, gnn_output, training)
+        return gnn_output
+
+    def call(self, inputs, training: bool):
+        final_node_representations = self.compute_final_node_representations(inputs, training)
+        return self.compute_task_output(inputs, final_node_representations, training)
 
     @abstractmethod
     def compute_task_metrics(

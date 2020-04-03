@@ -34,6 +34,10 @@ def register_task(
     )
 
 
+def clear_known_tasks() -> None:
+    TASK_NAME_TO_DATASET_AND_MODEL_INFO.clear()
+
+
 def get_known_tasks() -> Iterable[str]:
     for task_info in TASK_NAME_TO_DATASET_AND_MODEL_INFO.values():
         yield task_info.name

@@ -171,7 +171,16 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
             aml_run.log("task_test_metric", float(test_metric))
 
 
-def get_train_cli_arg_parser():
+def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
+    """
+    Get an argparse argument parser object with common options for training
+    GNN-based models.
+
+    Args:
+        default_model_type: If provided, the model type is downgraded from a
+            positional parameter on the command line to an option with the
+            given default value.
+    """
     import argparse
 
     parser = argparse.ArgumentParser(description="Train a GNN model.")
@@ -180,15 +189,18 @@ def get_train_cli_arg_parser():
     # as well as
     #  train.py model task data_path
     # The former is useful because of limitations in AzureML; the latter is nicer to type.
-    if "--model" in sys.argv:
+    if "--task" in sys.argv:
         model_param_name, task_param_name, data_path_param_name = "--model", "--task", "--data_path"
     else:
         model_param_name, task_param_name, data_path_param_name = "model", "task", "data_path"
 
+    if default_model_type:
+        model_param_name = "--model"
     parser.add_argument(
         model_param_name,
         type=str,
         choices=sorted(get_known_message_passing_classes()),
+        default=default_model_type,
         help="GNN model type to train.",
     )
     parser.add_argument(
