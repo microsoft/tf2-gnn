@@ -60,7 +60,7 @@ class GraphTaskModel(tf.keras.Model):
     def compute_task_output(
         self,
         batch_features: Dict[str, tf.Tensor],
-        final_node_representations: Union[tf.Tensor, Tuple[tf.Tensor, List[tf.Tensor]]],
+        final_node_representations: Union[tf.Tensor, Tuple[tf.Tensor, Tuple[tf.Tensor, ...]]],
         training: bool,
     ) -> Any:
         """Compute task-specific output (labels, scores, regression values, ...).
