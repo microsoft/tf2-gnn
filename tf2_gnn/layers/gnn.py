@@ -326,7 +326,7 @@ class GNN(tf.keras.layers.Layer):
                     cur_node_representations, training=training
                 )
 
-        return cur_node_representations, all_node_representations
+        return cur_node_representations, tuple(all_node_representations)
 
 
 if __name__ == "__main__":
