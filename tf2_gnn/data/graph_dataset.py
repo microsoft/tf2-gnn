@@ -149,7 +149,12 @@ class GraphDataset(Generic[GraphSampleType]):
                     means that the k-th edge of type l connects node v to node u.
         """
         graph_sample_iterator = self._graph_iterator(data_fold)
+        for graph_batch in self.graph_batch_iterator_from_graph_iterator(graph_sample_iterator):
+            yield graph_batch
 
+    def graph_batch_iterator_from_graph_iterator(
+        self, graph_sample_iterator: Iterator[GraphSampleType]
+    ) -> Iterator[Tuple[Dict[str, Any], Dict[str, Any]]]:
         raw_batch = self._new_batch()
         for graph_sample in graph_sample_iterator:
             num_nodes_in_graph = len(graph_sample.node_features)
