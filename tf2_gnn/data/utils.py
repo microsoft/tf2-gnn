@@ -9,7 +9,6 @@ Edge = Tuple[int, int]
 def process_adjacency_lists(
     adjacency_lists: List[List[Edge]],
     num_nodes: int,
-    num_edge_types: int,
     add_self_loop_edges: bool,
     tie_fwd_bkwd_edges: bool,
 ) -> Tuple[List[np.ndarray], np.ndarray]:
@@ -20,7 +19,7 @@ def process_adjacency_lists(
         adjacency_lists = _add_self_loop_edges(adjacency_lists, num_nodes)
 
     type_to_num_incoming_edges = _compute_type_to_num_inedges(
-        adjacency_lists=adjacency_lists, num_nodes=num_nodes, num_edge_types=num_edge_types
+        adjacency_lists=adjacency_lists, num_nodes=num_nodes
     )
 
     return _convert_adjacency_lists_to_numpy_arrays(adjacency_lists), type_to_num_incoming_edges
@@ -47,9 +46,8 @@ def _add_backward_edges(
         return adjacency_lists + flipped_adjacency_lists
 
 
-def _compute_type_to_num_inedges(
-    adjacency_lists: List[List[Edge]], num_nodes: int, num_edge_types: int
-) -> np.ndarray:
+def _compute_type_to_num_inedges(adjacency_lists: List[List[Edge]], num_nodes: int) -> np.ndarray:
+    num_edge_types = len(adjacency_lists)
     type_to_num_incoming_edges = np.zeros(shape=(num_edge_types, num_nodes))
 
     for edge_type, edges in enumerate(adjacency_lists):

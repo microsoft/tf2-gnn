@@ -128,7 +128,6 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         return process_adjacency_lists(
             adjacency_lists=raw_adjacency_lists,
             num_nodes=num_nodes,
-            num_edge_types=self.num_edge_types,
             add_self_loop_edges=self.params["add_self_loop_edges"],
             tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
         )
