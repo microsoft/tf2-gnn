@@ -5,6 +5,7 @@ import tensorflow as tf
 from dpu_utils.utils import RichPath
 
 from .graph_dataset import DataFold, GraphSample, GraphBatchTFDataDescription, GraphDataset
+from .utils import process_adjacency_lists
 
 
 class PPIGraphSample(GraphSample):
@@ -100,49 +101,27 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
         node_to_graph_id = data_dir.join("%s_graph_id.npy" % data_name).read_by_file_suffix()
 
         # We read in all the data in two steps:
-        #  (1) Read features, labels and insert self-loop edges (edge type 0).
-        #      Implicitly, this gives us the number of nodes per graph.
+        #  (1) Read features and labels. Implicitly, this gives us the number of nodes per graph.
         #  (2) Read all edges, and shift them so that each graph starts with node 0.
-        fwd_edge_type = 0
-        if self._params["add_self_loop_edges"]:
-            self_loop_edge_type = 1
-        if not self._params["tie_fwd_bkwd_edges"]:
-            bkwd_edge_type = self.num_edge_types - 1  # Always last
 
-        graph_id_to_graph_data: Dict[int, PPIGraphSample] = {}
+        graph_id_to_edges: Dict[int, List] = {}
+        graph_id_to_features: Dict[int, List] = {}
+        graph_id_to_labels: Dict[int, List] = {}
         graph_id_to_node_offset: Dict[int, int] = {}
+
         num_total_nodes = node_to_features.shape[0]
         for node_id in range(num_total_nodes):
             graph_id = node_to_graph_id[node_id]
-            # In case we are entering a new graph, note its ID, so that we can normalise everything to start at 0
-            if graph_id not in graph_id_to_graph_data:
-                graph_id_to_graph_data[graph_id] = PPIGraphSample(
-                    adjacency_lists=[[] for _ in range(self.num_edge_types)],
-                    type_to_node_to_num_inedges=[[] for _ in range(self.num_edge_types)],
-                    node_features=[],
-                    node_labels=[],
-                )
-                graph_id_to_node_offset[graph_id] = node_id
-            cur_graph_data = graph_id_to_graph_data[graph_id]
-            cur_graph_data.node_features.append(node_to_features[node_id])
-            cur_graph_data.node_labels.append(node_to_labels[node_id])
-            shifted_node_id = node_id - graph_id_to_node_offset[graph_id]
-            if self._params["add_self_loop_edges"]:
-                cur_graph_data.adjacency_lists[self_loop_edge_type].append(
-                    (shifted_node_id, shifted_node_id)
-                )
-                cur_graph_data.type_to_node_to_num_inedges[self_loop_edge_type].append(1)
 
-        # Prepare reading of the edges by setting counters to 0:
-        for graph_data in graph_id_to_graph_data.values():
-            num_graph_nodes = len(graph_data.node_features)
-            graph_data.type_to_node_to_num_inedges[fwd_edge_type] = np.zeros(
-                [num_graph_nodes], np.int32
-            )
-            if not self._params["tie_fwd_bkwd_edges"]:
-                graph_data.type_to_node_to_num_inedges[bkwd_edge_type] = np.zeros(
-                    [num_graph_nodes], np.int32
-                )
+            # In case we are entering a new graph, note its ID, so that we can normalise everything to start at 0
+            if graph_id not in graph_id_to_edges:
+                graph_id_to_edges[graph_id] = []
+                graph_id_to_features[graph_id] = []
+                graph_id_to_labels[graph_id] = []
+                graph_id_to_node_offset[graph_id] = node_id
+
+            graph_id_to_features[graph_id].append(node_to_features[node_id])
+            graph_id_to_labels[graph_id].append(node_to_labels[node_id])
 
         for edge_info in graph_json_data["links"]:
             src_node, tgt_node = edge_info["source"], edge_info["target"]
@@ -151,32 +130,37 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
             graph_node_offset = graph_id_to_node_offset[graph_id]
             src_node, tgt_node = src_node - graph_node_offset, tgt_node - graph_node_offset
 
-            cur_graph_data = graph_id_to_graph_data[graph_id]
-            cur_graph_data.adjacency_lists[fwd_edge_type].append((src_node, tgt_node))
-            cur_graph_data.type_to_node_to_num_inedges[fwd_edge_type][tgt_node] += 1
-            if not self._params["tie_fwd_bkwd_edges"]:
-                cur_graph_data.adjacency_lists[bkwd_edge_type].append((tgt_node, src_node))
-                cur_graph_data.type_to_node_to_num_inedges[bkwd_edge_type][src_node] += 1
-            else:
-                cur_graph_data.adjacency_lists[fwd_edge_type].append((tgt_node, src_node))
-                cur_graph_data.type_to_node_to_num_inedges[fwd_edge_type][src_node] += 1
+            graph_id_to_edges[graph_id].append((src_node, tgt_node))
 
         final_graphs = []
-        for graph_data in graph_id_to_graph_data.values():
-            # numpy-ize:
-            adj_lists = []
-            for edge_type_idx in range(self.num_edge_types):
-                adj_lists.append(np.array(graph_data.adjacency_lists[edge_type_idx]))
+        for graph_id in graph_id_to_edges.keys():
+            num_nodes = len(graph_id_to_features[graph_id])
+
+            adjacency_lists, type_to_node_to_num_inedges = self._process_raw_adjacency_lists(
+                raw_adjacency_lists=[graph_id_to_edges[graph_id]], num_nodes=num_nodes
+            )
+
             final_graphs.append(
                 PPIGraphSample(
-                    adjacency_lists=adj_lists,
-                    type_to_node_to_num_inedges=np.array(graph_data.type_to_node_to_num_inedges),
-                    node_features=np.array(graph_data.node_features),
-                    node_labels=np.array(graph_data.node_labels),
+                    adjacency_lists=adjacency_lists,
+                    type_to_node_to_num_inedges=type_to_node_to_num_inedges,
+                    node_features=np.array(graph_id_to_features[graph_id]),
+                    node_labels=np.array(graph_id_to_labels[graph_id]),
                 )
             )
 
         return final_graphs
+
+    def _process_raw_adjacency_lists(
+        self, raw_adjacency_lists: List[List[Tuple]], num_nodes: int
+    ) -> Tuple[List[np.ndarray], np.ndarray]:
+        return process_adjacency_lists(
+            adjacency_lists=raw_adjacency_lists,
+            num_nodes=num_nodes,
+            num_edge_types=self.num_edge_types,
+            add_self_loop_edges=self.params["add_self_loop_edges"],
+            tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
+        )
 
     # -------------------- Minibatching --------------------
     def get_batch_tf_data_description(self) -> GraphBatchTFDataDescription:

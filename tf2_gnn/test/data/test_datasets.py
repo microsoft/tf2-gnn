@@ -162,7 +162,7 @@ def ppi_test_case(tmp_data_dir, ppi_train_valid_paths):
             labels_key_name="node_labels",
             add_self_loop_edges=dataset_params["add_self_loop_edges"],
             tie_fwd_bkwd_edges=dataset_params["tie_fwd_bkwd_edges"],
-            self_loop_edge_type=1,
+            self_loop_edge_type=0,
         ),
     )
 
