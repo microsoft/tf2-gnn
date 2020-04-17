@@ -98,6 +98,8 @@ def ppi_train_valid_paths(tmp_data_dir):
 @pytest.fixture
 def jsonl_test_case():
     dataset_params = JsonLGraphPropertyDataset.get_default_hyperparameters()
+    dataset_params["num_fwd_edge_types"] = 4
+
     dataset = JsonLGraphPropertyDataset(dataset_params)
     data_path = RichPath.create(os.path.join(os.path.dirname(__file__), "..", "test_datasets"))
     dataset.load_data(data_path, folds_to_load={DataFold.TRAIN, DataFold.VALIDATION})
@@ -105,7 +107,7 @@ def jsonl_test_case():
     return TestCase(
         dataset=dataset,
         expected=TestExpectedValues(
-            num_edge_types=4,
+            num_edge_types=dataset_params["num_fwd_edge_types"] + 1,
             node_feature_shape=(35,),
             num_train_samples=10,
             num_valid_samples=10,
