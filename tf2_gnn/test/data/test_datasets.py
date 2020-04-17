@@ -1,13 +1,13 @@
 """Tests for the dataset classes."""
 import json
 import os
-from typing import Any, NamedTuple, Tuple
+from typing import Any, List, NamedTuple, Tuple
 
 import numpy as np
 import pytest
 
 from dpu_utils.utils import RichPath
-from tf2_gnn.data.graph_dataset import DataFold, GraphDataset
+from tf2_gnn.data.graph_dataset import DataFold, GraphDataset, GraphSampleType
 from tf2_gnn.data.jsonl_graph_property_dataset import JsonLGraphPropertyDataset
 from tf2_gnn.data.ppi_dataset import PPIDataset
 from tf2_gnn.data.qm9_dataset import QM9Dataset
@@ -19,6 +19,9 @@ class TestExpectedValues(NamedTuple):
     num_train_samples: int
     num_valid_samples: int
     labels_key_name: str
+    add_self_loop_edges: bool
+    tie_fwd_bkwd_edges: bool
+    self_loop_edge_type: int
 
 
 class TestCase(NamedTuple):
@@ -95,6 +98,8 @@ def ppi_train_valid_paths(tmp_data_dir):
 @pytest.fixture
 def jsonl_test_case():
     dataset_params = JsonLGraphPropertyDataset.get_default_hyperparameters()
+    dataset_params["num_fwd_edge_types"] = 4
+
     dataset = JsonLGraphPropertyDataset(dataset_params)
     data_path = RichPath.create(os.path.join(os.path.dirname(__file__), "..", "test_datasets"))
     dataset.load_data(data_path, folds_to_load={DataFold.TRAIN, DataFold.VALIDATION})
@@ -102,11 +107,14 @@ def jsonl_test_case():
     return TestCase(
         dataset=dataset,
         expected=TestExpectedValues(
-            num_edge_types=4,
+            num_edge_types=dataset_params["num_fwd_edge_types"] + 1,
             node_feature_shape=(35,),
             num_train_samples=10,
             num_valid_samples=10,
             labels_key_name="target_value",
+            add_self_loop_edges=dataset_params["add_self_loop_edges"],
+            tie_fwd_bkwd_edges=dataset_params["tie_fwd_bkwd_edges"],
+            self_loop_edge_type=0,
         ),
     )
 
@@ -128,6 +136,9 @@ def qm9_test_case(tmp_data_dir, qm9_train_valid_paths):
             num_train_samples=5,
             num_valid_samples=5,
             labels_key_name="target_value",
+            add_self_loop_edges=dataset_params["add_self_loop_edges"],
+            tie_fwd_bkwd_edges=dataset_params["tie_fwd_bkwd_edges"],
+            self_loop_edge_type=0,
         ),
     )
 
@@ -149,6 +160,9 @@ def ppi_test_case(tmp_data_dir, ppi_train_valid_paths):
             num_train_samples=1,
             num_valid_samples=1,
             labels_key_name="node_labels",
+            add_self_loop_edges=dataset_params["add_self_loop_edges"],
+            tie_fwd_bkwd_edges=dataset_params["tie_fwd_bkwd_edges"],
+            self_loop_edge_type=1,
         ),
     )
 
@@ -208,3 +222,37 @@ def test_batching(test_case: TestCase):
         assert False  # iterator should be empty here
     except StopIteration:
         pass  # This is what we expect: The iterator should be finished.
+
+
+def get_sorted_lists_of_edges(graph_sample: GraphSampleType) -> List[List[Tuple[int, int]]]:
+    return [sorted(tuple(edge) for edge in adj) for adj in graph_sample.adjacency_lists]
+
+
+def test_added_self_loop_edges(test_case: TestCase):
+    for datapoint in test_case.dataset._graph_iterator(DataFold.TRAIN):
+        adjacency_lists = get_sorted_lists_of_edges(datapoint)
+
+        for (edge_type, adjacency_list) in enumerate(adjacency_lists):
+            if (
+                test_case.expected.add_self_loop_edges
+                and edge_type == test_case.expected.self_loop_edge_type
+            ):
+                num_nodes = len(datapoint.node_features)
+                assert adjacency_list == [(i, i) for i in range(num_nodes)]
+            else:
+                for (src, dest) in adjacency_list:
+                    # If self loops were not explicitly added, expect no self loops in the graph.
+                    # This assumption may not universally hold, but it does for the datasets tested
+                    # here.
+                    assert src != dest
+
+
+def test_tied_fwd_bkwd_edges(test_case: TestCase):
+    for datapoint in test_case.dataset._graph_iterator(DataFold.TRAIN):
+        adjacency_lists = get_sorted_lists_of_edges(datapoint)
+
+        for adjacency_list in adjacency_lists:
+            adjacency_list_flipped = sorted([(dest, src) for (src, dest) in adjacency_list])
+
+            # This will hold even if `adjacency_list` corresponds to self-loops.
+            assert adjacency_list_flipped in adjacency_lists
