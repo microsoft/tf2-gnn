@@ -135,11 +135,6 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
         for src, edge_type, dest in graph:
             raw_adjacency_lists[edge_type].append((src, dest))
 
-        return self._process_raw_adjacency_lists(raw_adjacency_lists, num_nodes)
-
-    def _process_raw_adjacency_lists(
-        self, raw_adjacency_lists: List[List[Tuple]], num_nodes: int
-    ) -> Tuple[List[np.ndarray], np.ndarray]:
         return process_adjacency_lists(
             adjacency_lists=raw_adjacency_lists,
             num_nodes=num_nodes,

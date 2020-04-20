@@ -136,8 +136,11 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
         for graph_id in graph_id_to_edges.keys():
             num_nodes = len(graph_id_to_features[graph_id])
 
-            adjacency_lists, type_to_node_to_num_inedges = self._process_raw_adjacency_lists(
-                raw_adjacency_lists=[graph_id_to_edges[graph_id]], num_nodes=num_nodes
+            adjacency_lists, type_to_node_to_num_inedges = process_adjacency_lists(
+                adjacency_lists=[graph_id_to_edges[graph_id]],
+                num_nodes=num_nodes,
+                add_self_loop_edges=self.params["add_self_loop_edges"],
+                tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
             )
 
             final_graphs.append(
@@ -150,16 +153,6 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
             )
 
         return final_graphs
-
-    def _process_raw_adjacency_lists(
-        self, raw_adjacency_lists: List[List[Tuple]], num_nodes: int
-    ) -> Tuple[List[np.ndarray], np.ndarray]:
-        return process_adjacency_lists(
-            adjacency_lists=raw_adjacency_lists,
-            num_nodes=num_nodes,
-            add_self_loop_edges=self.params["add_self_loop_edges"],
-            tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
-        )
 
     # -------------------- Minibatching --------------------
     def get_batch_tf_data_description(self) -> GraphBatchTFDataDescription:
