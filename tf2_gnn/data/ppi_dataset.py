@@ -104,9 +104,9 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
         #  (1) Read features and labels. Implicitly, this gives us the number of nodes per graph.
         #  (2) Read all edges, and shift them so that each graph starts with node 0.
 
-        graph_id_to_edges: Dict[int, List] = {}
-        graph_id_to_features: Dict[int, List] = {}
-        graph_id_to_labels: Dict[int, List] = {}
+        graph_id_to_edges: Dict[int, List[Tuple[int, int]]] = {}
+        graph_id_to_features: Dict[int, List[np.ndarray]] = {}
+        graph_id_to_labels: Dict[int, List[np.ndarray]] = {}
         graph_id_to_node_offset: Dict[int, int] = {}
 
         num_total_nodes = node_to_features.shape[0]
