@@ -10,6 +10,7 @@ import tensorflow as tf
 from dpu_utils.utils import RichPath
 
 from .graph_dataset import DataFold, GraphSample, GraphBatchTFDataDescription, GraphDataset
+from .utils import process_adjacency_lists
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,6 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
         self._node_feature_shape = None
         self._loaded_data: Dict[DataFold, List[QM9GraphSample]] = {}
         logger.debug("Done initialising QM9 dataset.")
-
 
     @property
     def num_edge_types(self) -> int:
@@ -130,49 +130,17 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
     def __graph_to_adjacency_lists(
         self, graph: Iterable[Tuple[int, int, int]], num_nodes: int
     ) -> Tuple[List[np.ndarray], np.ndarray]:
-        type_to_adj_list = [
-            [] for _ in range(self._num_fwd_edge_types + int(self.params["add_self_loop_edges"]))
-        ]  # type: List[List[Tuple[int, int]]]
-        type_to_num_incoming_edges = np.zeros(shape=(self.num_edge_types, num_nodes))
-        for src, e, dest in graph:
-            if self.params["add_self_loop_edges"]:
-                fwd_edge_type = e  # 0 will be the self-loop type
-            else:
-                fwd_edge_type = e - 1  # Make edges start from 0
-            type_to_adj_list[fwd_edge_type].append((src, dest))
-            type_to_num_incoming_edges[fwd_edge_type, dest] += 1
-            if self.params["tie_fwd_bkwd_edges"]:
-                type_to_adj_list[fwd_edge_type].append((dest, src))
-                type_to_num_incoming_edges[fwd_edge_type, src] += 1
+        raw_adjacency_lists = [[] for _ in range(self.num_edge_types)]
 
-        if self.params["add_self_loop_edges"]:
-            # Add self-loop edges (idx 0, which isn't used in the data):
-            for node in range(num_nodes):
-                type_to_num_incoming_edges[0, node] = 1
-                type_to_adj_list[0].append((node, node))
+        for src, edge_type, dest in graph:
+            raw_adjacency_lists[edge_type].append((src, dest))
 
-        # Add backward edges as an additional edge type that goes backwards:
-        if not (self.params["tie_fwd_bkwd_edges"]):
-            # for (edge_type, adj_list) in enumerate(type_to_adj_list):
-            num_edge_types_in_adj_lists = len(type_to_adj_list)
-            for edge_type in range(num_edge_types_in_adj_lists):
-                adj_list = type_to_adj_list[edge_type]
-                # Don't add self loops again!
-                if edge_type == 0 and self.params["add_self_loop_edges"]:
-                    continue
-                bkwd_edge_type = len(type_to_adj_list)
-                type_to_adj_list.append([(y, x) for (x, y) in adj_list])
-                for (x, y) in adj_list:
-                    type_to_num_incoming_edges[bkwd_edge_type][y] += 1
-
-        # Convert the adjacency lists to numpy arrays.
-        type_to_adj_list = [
-            np.array(adj_list, dtype=np.int32)
-            if len(adj_list) > 0
-            else np.zeros(shape=(0, 2), dtype=np.int32)
-            for adj_list in type_to_adj_list
-        ]
-        return type_to_adj_list, type_to_num_incoming_edges
+        return process_adjacency_lists(
+            adjacency_lists=raw_adjacency_lists,
+            num_nodes=num_nodes,
+            add_self_loop_edges=self.params["add_self_loop_edges"],
+            tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
+        )
 
     @property
     def node_feature_shape(self) -> Tuple:
