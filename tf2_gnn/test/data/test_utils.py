@@ -1,15 +1,15 @@
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Tuple, Union, Set
 
 import numpy as np
 import pytest
-from tf2_gnn.data.utils import process_adjacency_lists
+from tf2_gnn.data.utils import get_tied_edge_types, process_adjacency_lists
 
 
 class TestInput(NamedTuple):
     adjacency_lists: List[List[Tuple[int, int]]]
     num_nodes: int
     add_self_loop_edges: bool
-    tie_fwd_bkwd_edges: bool
+    tie_fwd_bkwd_edges: Union[bool, Set[int]]
 
 
 class TestOutput(NamedTuple):
@@ -22,9 +22,11 @@ class TestCase(NamedTuple):
     expected_output: TestOutput
 
 
-def create_test_input(add_self_loop_edges: bool, tie_fwd_bkwd_edges: bool) -> TestInput:
+def create_test_input(
+    add_self_loop_edges: bool, tie_fwd_bkwd_edges: Union[bool, Set[int]], two_edge_types=False
+) -> TestInput:
     return TestInput(
-        adjacency_lists=[[(0, 1), (1, 2)]],
+        adjacency_lists=[[(0, 1)], [(1, 2)]] if two_edge_types else [[(0, 1), (1, 2)]],
         num_nodes=3,
         add_self_loop_edges=add_self_loop_edges,
         tie_fwd_bkwd_edges=tie_fwd_bkwd_edges,
@@ -69,6 +71,24 @@ all_test_cases = [
             type_to_num_incoming_edges=[[1, 1, 1], [1, 2, 1]],
         ),
     ),
+    TestCase(
+        test_input=create_test_input(
+            add_self_loop_edges=False, tie_fwd_bkwd_edges={0}, two_edge_types=True
+        ),
+        expected_output=create_test_output(
+            adjacency_lists=[[(0, 1), (1, 0)], [(1, 2)], [(2, 1)]],
+            type_to_num_incoming_edges=[[1, 1, 0], [0, 0, 1], [0, 1, 0]],
+        ),
+    ),
+    TestCase(
+        test_input=create_test_input(
+            add_self_loop_edges=False, tie_fwd_bkwd_edges={1}, two_edge_types=True
+        ),
+        expected_output=create_test_output(
+            adjacency_lists=[[(0, 1)], [(1, 2), (2, 1)], [(1, 0)]],
+            type_to_num_incoming_edges=[[0, 1, 0], [0, 1, 1], [1, 0, 0]],
+        ),
+    ),
 ]
 
 
@@ -79,7 +99,9 @@ def test_process_adjacency_lists(test_case: TestCase):
         adjacency_lists=inp.adjacency_lists,
         num_nodes=inp.num_nodes,
         add_self_loop_edges=inp.add_self_loop_edges,
-        tie_fwd_bkwd_edges=inp.tie_fwd_bkwd_edges,
+        tied_fwd_bkwd_edge_types=get_tied_edge_types(
+            tie_fwd_bkwd_edges=inp.tie_fwd_bkwd_edges, num_fwd_edge_types=len(inp.adjacency_lists)
+        ),
     )
 
     out = test_case.expected_output

@@ -5,7 +5,7 @@ import tensorflow as tf
 from dpu_utils.utils import RichPath
 
 from .graph_dataset import DataFold, GraphSample, GraphBatchTFDataDescription, GraphDataset
-from .utils import process_adjacency_lists
+from .utils import compute_number_of_edge_types, get_tied_edge_types, process_adjacency_lists
 
 
 class PPIGraphSample(GraphSample):
@@ -43,11 +43,15 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
     def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         super().__init__(params, metadata=metadata)
 
-        self._num_edge_types = 1
-        if params["add_self_loop_edges"]:
-            self._num_edge_types += 1
-        if not params["tie_fwd_bkwd_edges"]:
-            self._num_edge_types += 1
+        self._params["tied_fwd_bkwd_edge_types"] = get_tied_edge_types(
+            tie_fwd_bkwd_edges=params["tie_fwd_bkwd_edges"], num_fwd_edge_types=1,
+        )
+
+        self._num_edge_types = compute_number_of_edge_types(
+            tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
+            num_fwd_edge_types=1,
+            add_self_loop_edges=params["add_self_loop_edges"],
+        )
 
         # Things that will be filled once we load data:
         self._loaded_data: Dict[DataFold, List[PPIGraphSample]] = {}
@@ -140,7 +144,7 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
                 adjacency_lists=[graph_id_to_edges[graph_id]],
                 num_nodes=num_nodes,
                 add_self_loop_edges=self.params["add_self_loop_edges"],
-                tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
+                tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
             )
 
             final_graphs.append(

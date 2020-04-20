@@ -6,7 +6,7 @@ import numpy as np
 from dpu_utils.utils import RichPath
 
 from .graph_dataset import DataFold, GraphDataset, GraphSampleType, GraphSample
-from .utils import process_adjacency_lists
+from .utils import compute_number_of_edge_types, get_tied_edge_types, process_adjacency_lists
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +41,17 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         super().__init__(params, metadata=metadata)
         self._params = params
         self._num_fwd_edge_types = params["num_fwd_edge_types"]
-        if params["tie_fwd_bkwd_edges"]:
-            self._num_edge_types = self._num_fwd_edge_types
-        else:
-            self._num_edge_types = 2 * self._num_fwd_edge_types
-        self._num_edge_types += int(params["add_self_loop_edges"])
+
+        self._params["tied_fwd_bkwd_edge_types"] = get_tied_edge_types(
+            tie_fwd_bkwd_edges=params["tie_fwd_bkwd_edges"],
+            num_fwd_edge_types=params["num_fwd_edge_types"],
+        )
+
+        self._num_edge_types = compute_number_of_edge_types(
+            tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
+            num_fwd_edge_types=self._num_fwd_edge_types,
+            add_self_loop_edges=params["add_self_loop_edges"],
+        )
 
         self._node_feature_shape: Optional[Tuple[int]] = None
         self._loaded_data: Dict[DataFold, List[GraphSampleType]] = {}
@@ -129,7 +135,7 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
             adjacency_lists=raw_adjacency_lists,
             num_nodes=num_nodes,
             add_self_loop_edges=self.params["add_self_loop_edges"],
-            tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
+            tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
         )
 
     def _graph_iterator(self, data_fold: DataFold) -> Iterator[GraphSampleType]:
