@@ -42,13 +42,13 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         self._params = params
         self._num_fwd_edge_types = params["num_fwd_edge_types"]
 
-        self._params["tied_fwd_bkwd_edge_types"] = get_tied_edge_types(
+        self._tied_fwd_bkwd_edge_types = get_tied_edge_types(
             tie_fwd_bkwd_edges=params["tie_fwd_bkwd_edges"],
             num_fwd_edge_types=params["num_fwd_edge_types"],
         )
 
         self._num_edge_types = compute_number_of_edge_types(
-            tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
+            tied_fwd_bkwd_edge_types=self._tied_fwd_bkwd_edge_types,
             num_fwd_edge_types=self._num_fwd_edge_types,
             add_self_loop_edges=params["add_self_loop_edges"],
         )
@@ -135,7 +135,7 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
             adjacency_lists=raw_adjacency_lists,
             num_nodes=num_nodes,
             add_self_loop_edges=self.params["add_self_loop_edges"],
-            tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
+            tied_fwd_bkwd_edge_types=self._tied_fwd_bkwd_edge_types,
         )
 
     def _graph_iterator(self, data_fold: DataFold) -> Iterator[GraphSampleType]:

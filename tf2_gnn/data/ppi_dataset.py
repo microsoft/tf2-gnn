@@ -43,12 +43,12 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
     def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         super().__init__(params, metadata=metadata)
 
-        self._params["tied_fwd_bkwd_edge_types"] = get_tied_edge_types(
+        self._tied_fwd_bkwd_edge_types = get_tied_edge_types(
             tie_fwd_bkwd_edges=params["tie_fwd_bkwd_edges"], num_fwd_edge_types=1,
         )
 
         self._num_edge_types = compute_number_of_edge_types(
-            tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
+            tied_fwd_bkwd_edge_types=self._tied_fwd_bkwd_edge_types,
             num_fwd_edge_types=1,
             add_self_loop_edges=params["add_self_loop_edges"],
         )
@@ -144,7 +144,7 @@ class PPIDataset(GraphDataset[PPIGraphSample]):
                 adjacency_lists=[graph_id_to_edges[graph_id]],
                 num_nodes=num_nodes,
                 add_self_loop_edges=self.params["add_self_loop_edges"],
-                tied_fwd_bkwd_edge_types=self.params["tied_fwd_bkwd_edge_types"],
+                tied_fwd_bkwd_edge_types=self._tied_fwd_bkwd_edge_types,
             )
 
             final_graphs.append(
