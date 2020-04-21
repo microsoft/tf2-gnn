@@ -14,7 +14,6 @@ navigate to it and run `pip install -e ./` to install it as a local editable pac
 You will then be able to use the `tf2_gnn.layers.GNN` class and related utilities.
 
 This code was tested in Python 3.6 and 3.7 with TensorFlow 2.0 and 2.1.
-To install required packages, run `pip install -r requirements.txt`.
 
 The code is maintained by the [All Data AI](https://www.microsoft.com/en-us/research/group/ada/)
 group at Microsoft Research, Cambridge, UK.
