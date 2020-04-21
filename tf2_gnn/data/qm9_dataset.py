@@ -10,7 +10,7 @@ import tensorflow as tf
 from dpu_utils.utils import RichPath
 
 from .graph_dataset import DataFold, GraphSample, GraphBatchTFDataDescription, GraphDataset
-from .utils import process_adjacency_lists
+from .utils import compute_number_of_edge_types, get_tied_edge_types, process_adjacency_lists
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +60,17 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
         super().__init__(params, metadata=metadata)
         self._params = params
         self._num_fwd_edge_types = 4
-        if params["tie_fwd_bkwd_edges"]:
-            self._num_edge_types = self._num_fwd_edge_types
-        else:
-            self._num_edge_types = 2 * self._num_fwd_edge_types
-        self._num_edge_types += int(params["add_self_loop_edges"])
+
+        self._tied_fwd_bkwd_edge_types = get_tied_edge_types(
+            tie_fwd_bkwd_edges=params["tie_fwd_bkwd_edges"],
+            num_fwd_edge_types=self._num_fwd_edge_types,
+        )
+
+        self._num_edge_types = compute_number_of_edge_types(
+            tied_fwd_bkwd_edge_types=self._tied_fwd_bkwd_edge_types,
+            num_fwd_edge_types=self._num_fwd_edge_types,
+            add_self_loop_edges=params["add_self_loop_edges"],
+        )
 
         self._node_feature_shape = None
         self._loaded_data: Dict[DataFold, List[QM9GraphSample]] = {}
@@ -139,7 +145,7 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
             adjacency_lists=raw_adjacency_lists,
             num_nodes=num_nodes,
             add_self_loop_edges=self.params["add_self_loop_edges"],
-            tie_fwd_bkwd_edges=self.params["tie_fwd_bkwd_edges"],
+            tied_fwd_bkwd_edge_types=self._tied_fwd_bkwd_edge_types,
         )
 
     @property
