@@ -11,6 +11,21 @@ def process_adjacency_lists(
     add_self_loop_edges: bool,
     tied_fwd_bkwd_edge_types: Set[int],
 ) -> Tuple[List[np.ndarray], np.ndarray]:
+    """Process adjacency lists by adding backward edges and self loops.
+
+    Args:
+        adjacency_lists: adjacency lists as a list of lists, with one list per edge type.
+        num_nodes: number of nodes in the graph.
+        add_self_loop_edges: whether to add self loops.
+        tied_fwd_bkwd_edge_types: For these forward edge types, the added backward edges will have
+            the same type as the forward edge. For all remaining forward edge types, the backward
+            edges will get a new fresh edge type.
+
+    Returns:
+        Processed adjacency lists (with backward edges and self loops added, and each inner list
+        converted to numpy array), and an array of shape [num_total_edge_types, num_nodes]
+        containing counts of edges of a given type adjacent to a given node.
+    """
     adjacency_lists = _add_backward_edges(adjacency_lists, tied_fwd_bkwd_edge_types)
 
     # Add self loops after adding backward edges to avoid adding loops twice.
@@ -27,6 +42,15 @@ def process_adjacency_lists(
 def get_tied_edge_types(
     tie_fwd_bkwd_edges: Union[bool, Set[int]], num_fwd_edge_types: int
 ) -> Set[int]:
+    """Get the forward edge types which should be tied with their respective backward edge types.
+
+    Args:
+        tie_fwd_bkwd_edges: either an explicit set of edge types to tie (in which case that set is
+            returned), or a bool value (whether to tie all edge types, or none).
+
+    Returns:
+        Set of forward edge types to tie, which can be passed to`process_adjacency_lists`.
+    """
     if isinstance(tie_fwd_bkwd_edges, set):
         return tie_fwd_bkwd_edges
     elif tie_fwd_bkwd_edges:
