@@ -40,19 +40,19 @@ def process_adjacency_lists(
 
 
 def get_tied_edge_types(
-    tie_fwd_bkwd_edges: Union[bool, Set[int]], num_fwd_edge_types: int
+    tie_fwd_bkwd_edges: Union[bool, List[int]], num_fwd_edge_types: int
 ) -> Set[int]:
     """Get the forward edge types which should be tied with their respective backward edge types.
 
     Args:
-        tie_fwd_bkwd_edges: either an explicit set of edge types to tie (in which case that set is
-            returned), or a bool value (whether to tie all edge types, or none).
+        tie_fwd_bkwd_edges: either an explicit list of edge types to tie (in which case that list is
+            returned as a set), or a bool value (whether to tie all edge types, or none).
 
     Returns:
         Set of forward edge types to tie, which can be passed to`process_adjacency_lists`.
     """
-    if isinstance(tie_fwd_bkwd_edges, set):
-        return tie_fwd_bkwd_edges
+    if isinstance(tie_fwd_bkwd_edges, list):
+        return set(tie_fwd_bkwd_edges)
     elif tie_fwd_bkwd_edges:
         return set(range(num_fwd_edge_types))
     else:

@@ -9,7 +9,7 @@ class TestInput(NamedTuple):
     adjacency_lists: List[List[Tuple[int, int]]]
     num_nodes: int
     add_self_loop_edges: bool
-    tie_fwd_bkwd_edges: Union[bool, Set[int]]
+    tie_fwd_bkwd_edges: Union[bool, List[int]]
 
 
 class TestOutput(NamedTuple):
@@ -23,7 +23,7 @@ class TestCase(NamedTuple):
 
 
 def create_test_input(
-    add_self_loop_edges: bool, tie_fwd_bkwd_edges: Union[bool, Set[int]], two_edge_types=False
+    add_self_loop_edges: bool, tie_fwd_bkwd_edges: Union[bool, List[int]], two_edge_types=False
 ) -> TestInput:
     return TestInput(
         adjacency_lists=[[(0, 1)], [(1, 2)]] if two_edge_types else [[(0, 1), (1, 2)]],
@@ -73,7 +73,7 @@ all_test_cases = [
     ),
     TestCase(
         test_input=create_test_input(
-            add_self_loop_edges=False, tie_fwd_bkwd_edges={0}, two_edge_types=True
+            add_self_loop_edges=False, tie_fwd_bkwd_edges=[0], two_edge_types=True
         ),
         expected_output=create_test_output(
             adjacency_lists=[[(0, 1), (1, 0)], [(1, 2)], [(2, 1)]],
@@ -82,7 +82,7 @@ all_test_cases = [
     ),
     TestCase(
         test_input=create_test_input(
-            add_self_loop_edges=False, tie_fwd_bkwd_edges={1}, two_edge_types=True
+            add_self_loop_edges=False, tie_fwd_bkwd_edges=[1], two_edge_types=True
         ),
         expected_output=create_test_output(
             adjacency_lists=[[(0, 1)], [(1, 2), (2, 1)], [(1, 0)]],
