@@ -1,6 +1,6 @@
 """Graph representation aggregation layer."""
 from abc import abstractmethod
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Optional
 
 import tensorflow as tf
 from dpu_utils.tf2utils import MLP, get_activation_function_by_name, unsorted_segment_softmax
@@ -74,6 +74,8 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
         transformation_mlp_layers: List[int] = [128],
         transformation_mlp_activation_fun: str = "ReLU",
         transformation_mlp_dropout_rate: float = 0.2,
+        transformation_mlp_result_lower_bound: Optional[int] = None,
+        transformation_mlp_result_upper_bound: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -95,6 +97,12 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
                 representations.
             transformation_mlp_dropout_rate: MLP inter-layer dropout rate for computing graph
                 representations.
+            transformation_mlp_result_lower_bound: Lower bound that results of the transformation
+                MLP will be clipped to before being scaled and summed up.
+                This is particularly useful to limit the magnitude of results when using "sigmoid"
+                or "none" as weighting function.
+            transformation_mlp_result_upper_bound: Lower bound that results of the transformation
+                MLP will be clipped to before being scaled and summed up.
         """
         super().__init__(graph_representation_size, **kwargs)
         assert (
@@ -119,6 +127,8 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
             transformation_mlp_activation_fun
         )
         self._transformation_mlp_dropout_rate = transformation_mlp_dropout_rate
+        self._transformation_mlp_result_lower_bound = transformation_mlp_result_lower_bound
+        self._transformation_mlp_result_upper_bound = transformation_mlp_result_upper_bound
 
     def build(self, input_shapes: NodesToGraphRepresentationInput):
         with tf.name_scope("WeightedSumGraphRepresentation"):
@@ -130,7 +140,9 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
                     dropout_rate=self._scoring_mlp_dropout_rate,
                     name="ScoringMLP",
                 )
-                self._scoring_mlp.build(tf.TensorShape((None, input_shapes.node_embeddings[-1])))
+                self._scoring_mlp.build(
+                    tf.TensorShape((None, input_shapes.node_embeddings[-1]))
+                )
 
             self._transformation_mlp = MLP(
                 out_size=self._graph_representation_size,
@@ -177,6 +189,10 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
         node_reprs = self._transformation_mlp_activation_fun(
             self._transformation_mlp(inputs.node_embeddings, training=training)
         )  # Shape [V, GD]
+        if self._transformation_mlp_result_lower_bound is not None:
+            node_reprs = tf.maximum(node_reprs, self._transformation_mlp_result_lower_bound)
+        if self._transformation_mlp_result_upper_bound is not None:
+            node_reprs = tf.minimum(node_reprs, self._transformation_mlp_result_upper_bound)
         node_reprs = tf.reshape(
             node_reprs,
             shape=(-1, self._num_heads, self._graph_representation_size // self._num_heads),
