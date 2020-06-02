@@ -174,8 +174,8 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
                 raise ValueError()
 
         # (2) compute representations for each node/head pair:
-        node_reprs = self._transformation_mlp(
-            inputs.node_embeddings, training=training
+        node_reprs = self._transformation_mlp_activation_fun(
+            self._transformation_mlp(inputs.node_embeddings, training=training)
         )  # Shape [V, GD]
         node_reprs = tf.reshape(
             node_reprs,
