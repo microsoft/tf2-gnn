@@ -18,7 +18,8 @@ class GraphTaskModel(tf.keras.Model):
             "learning_rate": 0.001,
             "learning_rate_decay": 0.98,
             "momentum": 0.85,
-            "gradient_clip_value": 1.0,
+            "gradient_clip_value": None,  # Set to float value to clip each gradient separately
+            "gradient_clip_global_norm": None,  # Set to value to clip gradients by their norm
             "use_intermediate_gnn_results": False,
         }
         params.update(these_hypers)
@@ -168,22 +169,16 @@ class GraphTaskModel(tf.keras.Model):
         optimizer_name = self._params["optimizer"].lower()
         if optimizer_name == "sgd":
             return tf.keras.optimizers.SGD(
-                learning_rate=learning_rate,
-                momentum=self._params["momentum"],
-                clipvalue=self._params["gradient_clip_value"],
+                learning_rate=learning_rate, momentum=self._params["momentum"],
             )
         elif optimizer_name == "rmsprop":
             return tf.keras.optimizers.RMSprop(
                 learning_rate=learning_rate,
                 decay=self._params["learning_rate_decay"],
                 momentum=self._params["momentum"],
-                clipvalue=self._params["gradient_clip_value"],
             )
         elif optimizer_name == "adam":
-            return tf.keras.optimizers.Adam(
-                learning_rate=learning_rate,
-                clipvalue=self._params["gradient_clip_value"],
-            )
+            return tf.keras.optimizers.Adam(learning_rate=learning_rate,)
         else:
             raise Exception('Unknown optimizer "%s".' % (self._params["optimizer"]))
 
@@ -200,6 +195,28 @@ class GraphTaskModel(tf.keras.Model):
         """
         if getattr(self, "_optimizer", None) is None:
             self._optimizer = self._make_optimizer()
+
+        # Filter out variables without gradients:
+        gradient_variable_pairs = [
+            (grad, var) for (grad, var) in gradient_variable_pairs if grad is not None
+        ]
+        clip_val = self._params.get("gradient_clip_value")
+        if clip_val is not None:
+            gradient_variable_pairs = [
+                (tf.clip_by_value(grad, -clip_val, clip_val), var)
+                for (grad, var) in gradient_variable_pairs
+            ]
+
+        clip_norm_val = self._params.get("gradient_clip_global_norm")
+        if clip_norm_val is not None:
+            grads = [grad for (grad, var) in gradient_variable_pairs]
+            clipped_grads = tf.clip_by_global_norm(grads, clip_norm=clip_norm_val)
+            gradient_variable_pairs = [
+                (clipped_grad, var)
+                for (clipped_grad, (_, var)) in zip(
+                    clipped_grads, gradient_variable_pairs
+                )
+            ]
 
         self._optimizer.apply_gradients(gradient_variable_pairs)
 
