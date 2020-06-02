@@ -74,8 +74,8 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
         transformation_mlp_layers: List[int] = [128],
         transformation_mlp_activation_fun: str = "ReLU",
         transformation_mlp_dropout_rate: float = 0.2,
-        transformation_mlp_result_lower_bound: Optional[int] = None,
-        transformation_mlp_result_upper_bound: Optional[int] = None,
+        transformation_mlp_result_lower_bound: Optional[float] = None,
+        transformation_mlp_result_upper_bound: Optional[float] = None,
         **kwargs,
     ):
         """
@@ -101,7 +101,7 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
                 MLP will be clipped to before being scaled and summed up.
                 This is particularly useful to limit the magnitude of results when using "sigmoid"
                 or "none" as weighting function.
-            transformation_mlp_result_upper_bound: Lower bound that results of the transformation
+            transformation_mlp_result_upper_bound: Upper bound that results of the transformation
                 MLP will be clipped to before being scaled and summed up.
         """
         super().__init__(graph_representation_size, **kwargs)
