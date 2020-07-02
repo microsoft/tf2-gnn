@@ -35,8 +35,53 @@ class GraphTaskModel(tf.keras.Model):
         super().__init__(name=name)
         self._params = params
         self._num_edge_types = dataset.num_edge_types
-        self._use_intermediate_gnn_results = params.get("use_intermediate_gnn_results", False)
-        self._train_step_counter = 0
+        self._use_intermediate_gnn_results = params.get(
+            "use_intermediate_gnn_results", False
+        )
+
+        # Keep track of the training step as a TF variable
+        self._train_step_counter = tf.Variable(
+            initial_value=0, trainable=False, dtype=tf.int32, name="training_step"
+        )
+
+        # Store a couple of descriptions for jit compilation in the build function.
+        batch_description = dataset.get_batch_tf_data_description()
+        self._batch_feature_names = tuple(batch_description.batch_features_types.keys())
+        self._batch_label_names = tuple(batch_description.batch_labels_types.keys())
+        self._batch_feature_spec = tuple(
+            tf.TensorSpec(
+                shape=batch_description.batch_features_shapes[name],
+                dtype=batch_description.batch_features_types[name],
+            )
+            for name in self._batch_feature_names
+        )
+        self._batch_label_spec = tuple(
+            tf.TensorSpec(
+                shape=batch_description.batch_labels_shapes[name],
+                dtype=batch_description.batch_labels_types[name],
+            )
+            for name in self._batch_label_names
+        )
+
+    @staticmethod
+    def _pack(input: Dict[str, Any], names: Tuple[str, ...]) -> Tuple:
+        return tuple(input[name] for name in names)
+
+    def _pack_features(self, batch_features: Dict[str, Any]) -> Tuple:
+        return self._pack(batch_features, self._batch_feature_names)
+
+    def _pack_labels(self, batch_labels: Dict[str, Any]) -> Tuple:
+        return self._pack(batch_labels, self._batch_label_names)
+
+    @staticmethod
+    def _unpack(input: Tuple, names: Tuple) -> Dict[str, Any]:
+        return {name: value for name, value in zip(names, input)}
+
+    def _unpack_features(self, batch_features: Tuple) -> Dict[str, Any]:
+        return self._unpack(batch_features, self._batch_feature_names)
+
+    def _unpack_labels(self, batch_labels: Tuple) -> Dict[str, Any]:
+        return self._unpack(batch_labels, self._batch_label_names)
 
     def build(self, input_shapes: Dict[str, Any]):
         graph_params = {
@@ -56,6 +101,18 @@ class GraphTaskModel(tf.keras.Model):
         )
 
         super().build([])
+
+        setattr(
+            self,
+            "_fast_run_step",
+            tf.function(
+                input_signature=(
+                    self._batch_feature_spec,
+                    self._batch_label_spec,
+                    tf.TensorSpec(shape=(), dtype=tf.bool),
+                )
+            )(self._fast_run_step),
+        )
 
     def get_initial_node_feature_shape(self, input_shapes) -> tf.TensorShape:
         return input_shapes["node_features"]
@@ -253,6 +310,46 @@ class GraphTaskModel(tf.keras.Model):
         self._optimizer.apply_gradients(gradient_variable_pairs)
 
     # ----------------------------- Training Loop
+    def _run_step(
+        self,
+        batch_features: Dict[str, tf.Tensor],
+        batch_labels: Dict[str, tf.Tensor],
+        training: bool,
+    ) -> Dict[str, tf.Tensor]:
+        batch_features_tuple = self._pack_features(batch_features)
+        batch_labels_tuple = self._pack_labels(batch_labels)
+
+        return self._fast_run_step(batch_features_tuple, batch_labels_tuple, training)
+
+    def _fast_run_step(
+        self,
+        batch_features_tuple: Tuple[tf.Tensor],
+        batch_labels_tuple: Tuple[tf.Tensor],
+        training: bool,
+    ):
+        batch_features = self._unpack_features(batch_features_tuple)
+        batch_labels = self._unpack_labels(batch_labels_tuple)
+
+        with tf.GradientTape() as tape:
+            task_output = self(batch_features, training=True)
+            task_metrics = self.compute_task_metrics(
+                batch_features=batch_features,
+                task_output=task_output,
+                batch_labels=batch_labels,
+            )
+
+        def _training_update():
+            gradients = tape.gradient(task_metrics["loss"], self.trainable_variables)
+            self._apply_gradients(zip(gradients, self.trainable_variables))
+            self._train_step_counter.assign_add(1)
+
+        def _no_op():
+            pass
+
+        tf.cond(training, true_fn=_training_update, false_fn=_no_op)
+
+        return task_metrics
+
     def run_one_epoch(
         self, dataset: tf.data.Dataset, quiet: bool = False, training: bool = True,
     ) -> Tuple[float, float, List[Any]]:
@@ -261,23 +358,18 @@ class GraphTaskModel(tf.keras.Model):
         task_results = []
         total_loss = tf.constant(0, dtype=tf.float32)
         for step, (batch_features, batch_labels) in enumerate(dataset):
-            with tf.GradientTape() as tape:
-                task_output = self(batch_features, training=training)
-                task_metrics = self.compute_task_metrics(batch_features, task_output, batch_labels)
+            task_metrics = self._run_step(batch_features, batch_labels, training)
             total_loss += task_metrics["loss"]
             total_num_graphs += batch_features["num_graphs_in_batch"]
             task_results.append(task_metrics)
 
-            if training:
-                gradients = tape.gradient(
-                    task_metrics["loss"], self.trainable_variables
-                )
-                self._apply_gradients(zip(gradients, self.trainable_variables))
-                self._train_step_counter += 1
-
             if not quiet:
-                epoch_graph_average_loss = (total_loss / float(total_num_graphs)).numpy()
-                batch_graph_average_loss = task_metrics["loss"] / float(batch_features["num_graphs_in_batch"])
+                epoch_graph_average_loss = (
+                    total_loss / float(total_num_graphs)
+                ).numpy()
+                batch_graph_average_loss = task_metrics["loss"] / float(
+                    batch_features["num_graphs_in_batch"]
+                )
                 steps_per_second = step / (time.time() - epoch_time_start)
                 print(
                     f"   Step: {step:4d}"
