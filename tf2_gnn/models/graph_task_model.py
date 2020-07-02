@@ -16,8 +16,8 @@ class GraphTaskModel(tf.keras.Model):
         these_hypers: Dict[str, Any] = {
             "optimizer": "Adam",  # One of "SGD", "RMSProp", "Adam"
             "learning_rate": 0.001,
-            "learning_rate_decay": 0.98,
             "momentum": 0.85,
+            "rmsprop_rho": 0.98,  # decay of gradients in RMSProp (unused otherwise)
             "gradient_clip_value": None,  # Set to float value to clip each gradient separately
             "gradient_clip_global_norm": None,  # Set to value to clip gradients by their norm
             "use_intermediate_gnn_results": False,
@@ -174,8 +174,8 @@ class GraphTaskModel(tf.keras.Model):
         elif optimizer_name == "rmsprop":
             return tf.keras.optimizers.RMSprop(
                 learning_rate=learning_rate,
-                decay=self._params["learning_rate_decay"],
                 momentum=self._params["momentum"],
+                rho=self._params["rmsprop_rho"],
             )
         elif optimizer_name == "adam":
             return tf.keras.optimizers.Adam(learning_rate=learning_rate,)
