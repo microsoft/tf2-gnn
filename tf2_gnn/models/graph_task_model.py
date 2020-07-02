@@ -6,6 +6,9 @@ import tensorflow as tf
 
 from tf2_gnn import GNNInput, GNN
 from tf2_gnn.data import GraphDataset
+from tf2_gnn.utils.polynomial_warmup_and_decay_schedule import (
+    PolynomialWarmupAndDecaySchedule,
+)
 
 
 class GraphTaskModel(tf.keras.Model):
@@ -16,6 +19,8 @@ class GraphTaskModel(tf.keras.Model):
         these_hypers: Dict[str, Any] = {
             "optimizer": "Adam",  # One of "SGD", "RMSProp", "Adam"
             "learning_rate": 0.001,
+            "learning_rate_warmup_steps": None,
+            "learning_rate_decay_steps": None,
             "momentum": 0.85,
             "rmsprop_rho": 0.98,  # decay of gradients in RMSProp (unused otherwise)
             "gradient_clip_value": None,  # Set to float value to clip each gradient separately
@@ -166,6 +171,28 @@ class GraphTaskModel(tf.keras.Model):
         """
         if learning_rate is None:
             learning_rate = self._params["learning_rate"]
+
+            num_warmup_steps = self._params.get("learning_rate_warmup_steps")
+            num_decay_steps = self._params.get("learning_rate_decay_steps")
+            if num_warmup_steps is not None or num_decay_steps is not None:
+                initial_learning_rate = 0.00001
+                final_learning_rate = 0.00001
+                if num_warmup_steps is None:
+                    num_warmup_steps = -1  # Make sure that we have no warmup phase
+                    initial_learning_rate = learning_rate
+                if num_decay_steps is None:
+                    num_decay_steps = (
+                        1  # Value doesn't matter, but needs to be non-zero
+                    )
+                    final_learning_rate = learning_rate
+                learning_rate = PolynomialWarmupAndDecaySchedule(
+                    learning_rate=learning_rate,
+                    warmup_steps=num_warmup_steps,
+                    decay_steps=num_decay_steps,
+                    initial_learning_rate=initial_learning_rate,
+                    final_learning_rate=final_learning_rate,
+                    power=1.0,
+                )
 
         optimizer_name = self._params["optimizer"].lower()
         if optimizer_name == "sgd":
