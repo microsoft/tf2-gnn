@@ -19,7 +19,8 @@ class GraphTaskModel(tf.keras.Model):
             "momentum": 0.85,
             "rmsprop_rho": 0.98,  # decay of gradients in RMSProp (unused otherwise)
             "gradient_clip_value": None,  # Set to float value to clip each gradient separately
-            "gradient_clip_global_norm": None,  # Set to value to clip gradients by their norm
+            "gradient_clip_norm": None,  # Set to value to clip gradients by their norm
+            "gradient_clip_global_norm": None,  # Set to value to clip gradients by their global norm
             "use_intermediate_gnn_results": False,
         }
         params.update(these_hypers)
@@ -201,21 +202,25 @@ class GraphTaskModel(tf.keras.Model):
             (grad, var) for (grad, var) in gradient_variable_pairs if grad is not None
         ]
         clip_val = self._params.get("gradient_clip_value")
+        clip_norm_val = self._params.get("gradient_clip_norm")
+        clip_global_norm_val = self._params.get("gradient_clip_global_norm")
+
         if clip_val is not None:
             gradient_variable_pairs = [
                 (tf.clip_by_value(grad, -clip_val, clip_val), var)
                 for (grad, var) in gradient_variable_pairs
             ]
-
-        clip_norm_val = self._params.get("gradient_clip_global_norm")
-        if clip_norm_val is not None:
-            grads = [grad for (grad, var) in gradient_variable_pairs]
-            clipped_grads = tf.clip_by_global_norm(grads, clip_norm=clip_norm_val)
+        elif clip_norm_val is not None:
+            gradient_variable_pairs = [
+                (tf.clip_by_norm(grad, clip_norm_val), var)
+                for (grad, var) in gradient_variable_pairs
+            ]
+        elif clip_global_norm_val is not None:
+            grads = [grad for (grad, _) in gradient_variable_pairs]
+            clipped_grads, _ = tf.clip_by_global_norm(grads, clip_norm=clip_global_norm_val)
             gradient_variable_pairs = [
                 (clipped_grad, var)
-                for (clipped_grad, (_, var)) in zip(
-                    clipped_grads, gradient_variable_pairs
-                )
+                for (clipped_grad, (_, var)) in zip(clipped_grads, gradient_variable_pairs)
             ]
 
         self._optimizer.apply_gradients(gradient_variable_pairs)
