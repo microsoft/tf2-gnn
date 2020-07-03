@@ -70,10 +70,13 @@ class GraphDataset(Generic[GraphSampleType]):
     def get_default_hyperparameters(cls) -> Dict[str, Any]:
         return {
             "max_nodes_per_batch": 10000,
+            "include_adjacency_list_for_dense_graphs": False,  # required for transformer layers in the GNN
         }
 
     def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         self._params = params
+        self._max_nodes_per_batch = params["max_nodes_per_batch"]
+        self._include_adjacency_list_for_dense_graphs = params["include_adjacency_list_for_dense_graphs"]
         self._metadata = metadata if metadata is not None else {}
 
     @property
@@ -180,7 +183,7 @@ class GraphDataset(Generic[GraphSampleType]):
         num_nodes_in_graph = len(graph_sample.node_features)
         return (
             raw_batch["num_nodes_in_batch"] + num_nodes_in_graph
-            > self._params["max_nodes_per_batch"]
+            > self._max_nodes_per_batch
         )
 
     def _new_batch(self) -> Dict[str, Any]:
@@ -189,6 +192,7 @@ class GraphDataset(Generic[GraphSampleType]):
             "node_features": [],
             "adjacency_lists": [[] for _ in range(self.num_edge_types)],
             "node_to_graph_map": [],
+            "adjacency_list_for_dense_graphs": [],
             "num_graphs_in_batch": 0,
             "num_nodes_in_batch": 0,
         }
@@ -209,7 +213,19 @@ class GraphDataset(Generic[GraphSampleType]):
                 dtype=np.int32,
             )
         )
-        for edge_type_idx, batch_adjacency_list in enumerate(raw_batch["adjacency_lists"]):
+        if self._include_adjacency_list_for_dense_graphs:
+            raw_batch["adjacency_list_for_dense_graphs"].append(
+                np.array(
+                    np.meshgrid(
+                        np.arange(num_nodes_in_graph), np.arange(num_nodes_in_graph)
+                    )
+                ).T.reshape(-1, 2)
+                + raw_batch["num_nodes_in_batch"]
+            )
+
+        for edge_type_idx, batch_adjacency_list in enumerate(
+            raw_batch["adjacency_lists"]
+        ):
             batch_adjacency_list.append(
                 graph_sample.adjacency_lists[edge_type_idx].reshape(-1, 2)
                 + raw_batch["num_nodes_in_batch"]
@@ -229,7 +245,15 @@ class GraphDataset(Generic[GraphSampleType]):
         batch_features: Dict[str, Any] = {}
         batch_labels: Dict[str, Any] = {}
         batch_features["node_features"] = np.array(raw_batch["node_features"])
-        batch_features["node_to_graph_map"] = np.concatenate(raw_batch["node_to_graph_map"])
+        batch_features["node_to_graph_map"] = np.concatenate(
+            raw_batch["node_to_graph_map"]
+        )
+        if self._include_adjacency_list_for_dense_graphs:
+            batch_features["adjacency_list_for_dense_graphs"] = np.concatenate(
+                raw_batch["adjacency_list_for_dense_graphs"], axis=0
+            )
+        else:
+            batch_features["adjacency_list_for_dense_graphs"] = np.zeros(shape=(0, 2), dtype=np.int32)
         batch_features["num_graphs_in_batch"] = raw_batch["num_graphs_in_batch"]
         for i, adjacency_list in enumerate(raw_batch["adjacency_lists"]):
             if len(adjacency_list) > 0:
@@ -248,10 +272,12 @@ class GraphDataset(Generic[GraphSampleType]):
             "node_features": tf.float32,
             "node_to_graph_map": tf.int32,
             "num_graphs_in_batch": tf.int32,
+            "adjacency_list_for_dense_graphs": tf.int32,
         }
         batch_features_shapes = {
             "node_features": (None,) + self.node_feature_shape,
             "node_to_graph_map": (None,),
+            "adjacency_list_for_dense_graphs": (None, 2),
             "num_graphs_in_batch": (),
         }
         for edge_type_idx in range(self.num_edge_types):

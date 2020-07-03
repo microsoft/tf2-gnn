@@ -4,18 +4,19 @@ from typing import Any, Dict, NamedTuple, List, Tuple, Optional
 import tensorflow as tf
 
 from tf2_gnn.utils.param_helpers import get_activation_function
-from .message_passing import (
+from tf2_gnn.layers.message_passing import (
     MessagePassing,
     MessagePassingInput,
     get_message_passing_class,
 )
-from .graph_global_exchange import (
+from tf2_gnn.layers.graph_global_exchange import (
     GraphGlobalExchangeInput,
     GraphGlobalExchange,
     GraphGlobalMeanExchange,
     GraphGlobalGRUExchange,
     GraphGlobalMLPExchange,
 )
+from tf2_gnn.layers.graph_densely_connected_transformer import GraphDenselyConnectedTransformerLayer
 
 
 class GNNInput(NamedTuple):
@@ -23,6 +24,7 @@ class GNNInput(NamedTuple):
 
     node_features: tf.Tensor
     adjacency_lists: Tuple[tf.Tensor, ...]
+    adjacency_list_for_dense_graphs: tf.Tensor
     node_to_graph_map: tf.Tensor
     num_graphs: tf.Tensor
 
@@ -31,6 +33,7 @@ class GNN(tf.keras.layers.Layer):
     """Encode graph states using a combination of graph message passing layers and dense layers
 
     Example usage:
+    >>> from itertools import product
     >>> layer_input = GNNInput(
     ...     node_features = tf.random.normal(shape=(5, 3)),
     ...     adjacency_lists = (
@@ -38,6 +41,7 @@ class GNN(tf.keras.layers.Layer):
     ...         tf.constant([[1, 2], [3, 4]], dtype=tf.int32),
     ...         tf.constant([[2, 0]], dtype=tf.int32)
     ...         ),
+    ...     adjacency_list_for_dense_graphs = product(range(5), range(5)),
     ...     node_to_graph_map = tf.fill(dims=(5,), value=0),
     ...     num_graphs = 1,
     ...     )
@@ -51,20 +55,23 @@ class GNN(tf.keras.layers.Layer):
     """
 
     @classmethod
-    def get_default_hyperparameters(cls, mp_style: Optional[str] = None) -> Dict[str, Any]:
+    def get_default_hyperparameters(
+        cls, mp_style: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Get the default hyperparameter dictionary for the  class."""
         these_hypers = {
             "message_calculation_class": "rgcn",
             "initial_node_representation_activation": "tanh",
             "dense_intermediate_layer_activation": "tanh",
             "num_layers": 4,
-            "dense_every_num_layers": 2,
+            "dense_every_num_layers": 10000,
             "residual_every_num_layers": 2,
+            "transformer_every_num_layers": 10000,
             "use_inter_layer_layernorm": False,
             "hidden_dim": 16,
             "layer_input_dropout_rate": 0.0,
             "global_exchange_mode": "gru",  # One of "mean", "mlp", "gru"
-            "global_exchange_every_num_layers": 2,
+            "global_exchange_every_num_layers": 10000,
             "global_exchange_weighting_fun": "softmax",  # One of "softmax", "sigmoid"
             "global_exchange_num_heads": 4,
             "global_exchange_dropout_rate": 0.2,
@@ -86,6 +93,7 @@ class GNN(tf.keras.layers.Layer):
         self._num_layers = params["num_layers"]
         self._dense_every_num_layers = params["dense_every_num_layers"]
         self._residual_every_num_layers = params["residual_every_num_layers"]
+        self._transformer_every_num_layers = params["transformer_every_num_layers"]
         self._use_inter_layer_layernorm = params["use_inter_layer_layernorm"]
         self._initial_node_representation_activation_fn = get_activation_function(
             params["initial_node_representation_activation"]
@@ -112,6 +120,7 @@ class GNN(tf.keras.layers.Layer):
         self._mp_layers: List[MessagePassing] = []
         self._inter_layer_layernorms: List[tf.keras.layers.Layer] = []
         self._dense_layers: Dict[str, tf.keras.layers.Layer] = {}
+        self._transformer_layers: Dict[str, tf.keras.layers.Layer] = {}
         self._global_exchange_layers: Dict[str, GraphGlobalExchange] = {}
 
     def build(self, tensor_shapes: GNNInput):
@@ -168,6 +177,21 @@ class GNN(tf.keras.layers.Layer):
                                 activation=self._dense_intermediate_layer_activation_fn,
                             )
                             self._dense_layers[str(layer_idx)].build(embedded_shape)
+
+                    # Construct the Transformer layers operating on the densely connected graph:
+                    if (layer_idx + 1) % self._transformer_every_num_layers == 0:
+                        with tf.name_scope(f"GraphDenselyConnectedTransformer"):
+                            self._transformer_layers[
+                                str(layer_idx)
+                            ] = GraphDenselyConnectedTransformerLayer(
+                                num_heads=8,
+                                head_size=16,
+                                hidden_size=self._hidden_dim,
+                                intermediate_size=2 * self._hidden_dim,
+                            )
+                            self._transformer_layers[str(layer_idx)].build(
+                                (embedded_shape, tf.TensorShape((None, 2)))
+                            )
 
                     if (
                         layer_idx
@@ -226,10 +250,17 @@ class GNN(tf.keras.layers.Layer):
                 ),
                 node_to_graph_map=tf.TensorSpec(shape=(None,), dtype=tf.int32),
                 num_graphs=tf.TensorSpec(shape=(), dtype=tf.int32),
+                adjacency_list_for_dense_graphs=tf.TensorSpec(shape=(None, 2), dtype=tf.int32),
             ),
-            tf.TensorSpec(shape=(), dtype=tf.bool)
+            tf.TensorSpec(shape=(), dtype=tf.bool),
         )
-        setattr(self, "_internal_call", tf.function(func=self._internal_call, input_signature=internal_call_input_spec))
+        setattr(
+            self,
+            "_internal_call",
+            tf.function(
+                func=self._internal_call, input_signature=internal_call_input_spec
+            ),
+        )
 
     def call(self, inputs: GNNInput, training: bool = False, return_all_representations: bool = False):
         """
@@ -317,7 +348,14 @@ class GNN(tf.keras.layers.Layer):
             # If required, apply a LayerNorm:
             if self._use_inter_layer_layernorm:
                 cur_node_representations = self._inter_layer_layernorms[layer_idx](
-                    cur_node_representations
+                    cur_node_representations, training=training,
+                )
+
+            # Apply Transformer layer operating on the densely connected graph:
+            if (layer_idx + 1) % self._transformer_every_num_layers == 0:
+                cur_node_representations = self._transformer_layers[str(layer_idx)](
+                    (cur_node_representations, inputs.adjacency_list_for_dense_graphs),
+                    training=training,
                 )
 
             # Apply dense layer, if needed.
