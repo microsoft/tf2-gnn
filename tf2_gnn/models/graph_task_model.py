@@ -392,3 +392,15 @@ class GraphTaskModel(tf.keras.Model):
         # Note: This assumes that the task output is a tensor (true for classification, regression,
         #  etc.) but subclasses implementing more complicated outputs will need to override this.
         return tf.concat(task_outputs, axis=0)
+
+    def evaluate_model(self, dataset: tf.data.Dataset) -> Dict[str, float]:
+        """Evaluate the model using metrics that make sense for its application area.
+
+        Args:
+            dataset: A dataset to evaluate on, same format as used in the training loop.
+
+        Returns:
+            Dictionary mapping metric names ("accuracy", "roc_auc") to their respective
+            values.
+        """
+        raise NotImplementedError()
