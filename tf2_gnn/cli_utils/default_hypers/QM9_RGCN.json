@@ -9,7 +9,7 @@
         "gnn_dense_intermediate_layer_activation": "tanh",
         "gnn_layer_input_dropout_rate": 0.0,
         "gnn_message_activation_function": "leaky_relu",
-        "learning_rate_decay": 0.98,
+        "rmsprop_rho": 0.98,
         "momentum": 0.85,
         "gnn_aggregation_function": "sum",
         "gnn_dense_every_num_layers": 32,
@@ -17,6 +17,6 @@
         "gnn_use_inter_layer_layernorm": true,
         "gnn_hidden_dim": 128,
         "gradient_clip_value": 1.0,
-        "optimiser": "RMSProp"
+        "optimizer": "RMSProp"
     }
 }
