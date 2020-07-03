@@ -48,12 +48,16 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
 
     @classmethod
     def get_default_hyperparameters(cls) -> Dict[str, Any]:
-        return {
+        super_hypers = super().get_default_hyperparameters()
+        this_hypers = {
             "max_nodes_per_batch": 10000,
             "add_self_loop_edges": True,
             "tie_fwd_bkwd_edges": True,
             "task_id": 0,
         }
+        super_hypers.update(this_hypers)
+
+        return super_hypers
 
     def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
         logger.info("Initialising QM9 Dataset.")

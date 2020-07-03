@@ -30,11 +30,15 @@ class PPIGraphSample(GraphSample):
 class PPIDataset(GraphDataset[PPIGraphSample]):
     @classmethod
     def get_default_hyperparameters(cls) -> Dict[str, Any]:
-        return {
+        super_hypers = super().get_default_hyperparameters()
+        this_hypers = {
             "max_nodes_per_batch": 10000,
             "add_self_loop_edges": True,
             "tie_fwd_bkwd_edges": False,
         }
+        super_hypers.update(this_hypers)
+
+        return super_hypers
 
     @staticmethod
     def default_data_path() -> str:
