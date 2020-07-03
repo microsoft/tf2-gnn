@@ -274,7 +274,7 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         "--run-test",
         dest="run_test",
         action="store_true",
-        default=True,
+        default=False,
         help="Run on testset after training.",
     )
     parser.add_argument(
