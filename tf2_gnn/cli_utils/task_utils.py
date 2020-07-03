@@ -5,6 +5,7 @@ from ..models import (
     NodeMulticlassTask,
     GraphRegressionTask,
     GraphBinaryClassificationTask,
+    QM9RegressionTask,
 )
 from ..data import GraphDataset, JsonLGraphPropertyDataset, QM9Dataset, PPIDataset
 
@@ -76,7 +77,7 @@ register_task(
     task_name="QM9",
     dataset_class=QM9Dataset,
     dataset_default_hypers={},
-    model_class=GraphRegressionTask,
+    model_class=QM9RegressionTask,
     model_default_hypers={},
 )
 
