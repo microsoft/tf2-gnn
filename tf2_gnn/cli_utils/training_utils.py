@@ -107,7 +107,7 @@ def unwrap_tf_tracked_data(data: Any) -> Any:
 def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str] = {}) -> None:
     # Get the housekeeping going and start logging:
     os.makedirs(args.save_dir, exist_ok=True)
-    run_id = make_run_id(args.model, args.task)
+    run_id = make_run_id(args.model, args.task, args.run_name)
     log_file = os.path.join(args.save_dir, f"{run_id}.log")
     
     def log(msg):
