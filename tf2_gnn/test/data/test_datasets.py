@@ -203,7 +203,7 @@ def test_batching(test_case: TestCase):
     first_minibatch = next(tf_dataset_itererator)
     (batch_features, batch_labels) = first_minibatch
 
-    assert len(batch_features.keys()) == 3 + test_case.expected.num_edge_types
+    assert len(batch_features.keys()) == 4 + test_case.expected.num_edge_types
 
     assert "node_features" in batch_features
     assert "node_to_graph_map" in batch_features

@@ -41,7 +41,7 @@ class GNN(tf.keras.layers.Layer):
     ...         tf.constant([[1, 2], [3, 4]], dtype=tf.int32),
     ...         tf.constant([[2, 0]], dtype=tf.int32)
     ...         ),
-    ...     adjacency_list_for_dense_graphs = product(range(5), range(5)),
+    ...     adjacency_list_for_dense_graphs = tf.constant(list(product(range(5), range(5)))),
     ...     node_to_graph_map = tf.fill(dims=(5,), value=0),
     ...     num_graphs = 1,
     ...     )
