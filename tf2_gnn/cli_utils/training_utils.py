@@ -119,20 +119,17 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
     tf.random.set_seed(args.random_seed)
 
     data_path = RichPath.create(args.data_path, args.azure_info)
-    try:
-        dataset, model = get_model_and_dataset(
-            msg_passing_implementation=args.model,
-            task_name=args.task,
-            data_path=data_path,
-            trained_model_file=args.load_saved_model,
-            cli_data_hyperparameter_overrides=args.data_param_override,
-            cli_model_hyperparameter_overrides=args.model_param_override,
-            hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
-            folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
-            load_weights_only=args.load_weights_only,
-        )
-    except ValueError as err:
-        print(err.args)
+    dataset, model = get_model_and_dataset(
+        msg_passing_implementation=args.model,
+        task_name=args.task,
+        data_path=data_path,
+        trained_model_file=args.load_saved_model,
+        cli_data_hyperparameter_overrides=args.data_param_override,
+        cli_model_hyperparameter_overrides=args.model_param_override,
+        hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
+        folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
+        load_weights_only=args.load_weights_only,
+    )
 
     log(f"Dataset parameters: {json.dumps(unwrap_tf_tracked_data(dataset._params))}")
     log(f"Model parameters: {json.dumps(unwrap_tf_tracked_data(model._params))}")
