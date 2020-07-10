@@ -290,11 +290,17 @@ class GraphTaskModel(tf.keras.Model):
         clip_global_norm_val = self._params.get("gradient_clip_global_norm")
 
         if clip_val is not None:
+            if clip_norm_val is not None:
+                raise ValueError("Both 'gradient_clip_value' and 'gradient_clip_norm' are set, but can only use one at a time.")
+            if clip_global_norm_val is not None:
+                raise ValueError("Both 'gradient_clip_value' and 'gradient_clip_global_norm' are set, but can only use one at a time.")
             gradient_variable_pairs = [
                 (tf.clip_by_value(grad, -clip_val, clip_val), var)
                 for (grad, var) in gradient_variable_pairs
             ]
         elif clip_norm_val is not None:
+            if clip_global_norm_val is not None:
+                raise ValueError("Both 'gradient_clip_norm' and 'gradient_clip_global_norm' are set, but can only use one at a time.")
             gradient_variable_pairs = [
                 (tf.clip_by_norm(grad, clip_norm_val), var)
                 for (grad, var) in gradient_variable_pairs
@@ -331,7 +337,7 @@ class GraphTaskModel(tf.keras.Model):
         batch_labels = self._unpack_labels(batch_labels_tuple)
 
         with tf.GradientTape() as tape:
-            task_output = self(batch_features, training=True)
+            task_output = self(batch_features, training=training)
             task_metrics = self.compute_task_metrics(
                 batch_features=batch_features,
                 task_output=task_output,
@@ -400,7 +406,7 @@ class GraphTaskModel(tf.keras.Model):
             dataset: A dataset to evaluate on, same format as used in the training loop.
 
         Returns:
-            Dictionary mapping metric names ("accuracy", "roc_auc") to their respective
+            Dictionary mapping metric names (e.g., "accuracy", "roc_auc") to their respective
             values.
         """
         raise NotImplementedError()

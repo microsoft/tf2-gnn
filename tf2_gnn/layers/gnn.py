@@ -58,13 +58,13 @@ class GNN(tf.keras.layers.Layer):
             "initial_node_representation_activation": "tanh",
             "dense_intermediate_layer_activation": "tanh",
             "num_layers": 4,
-            "dense_every_num_layers": 2,
             "residual_every_num_layers": 2,
+            "dense_every_num_layers": 32,
+            "global_exchange_every_num_layers": 32,
             "use_inter_layer_layernorm": False,
             "hidden_dim": 16,
             "layer_input_dropout_rate": 0.0,
             "global_exchange_mode": "gru",  # One of "mean", "mlp", "gru"
-            "global_exchange_every_num_layers": 2,
             "global_exchange_weighting_fun": "softmax",  # One of "softmax", "sigmoid"
             "global_exchange_num_heads": 4,
             "global_exchange_dropout_rate": 0.2,

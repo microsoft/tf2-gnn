@@ -20,9 +20,9 @@ class GraphRegressionTask(GraphTaskModel):
         super_params = super().get_default_hyperparameters(mp_style)
         these_hypers: Dict[str, Any] = {
             "use_intermediate_gnn_results": True,
-            "graph_representation_size": 64,
+            "graph_aggregation_output_size": 32,
             "graph_aggregation_num_heads": 4,
-            "graph_aggregation_layers": [64, 64],
+            "graph_aggregation_layers": [32, 32],
             "graph_aggregation_dropout_rate": 0.1,
             "regression_mlp_layers": [64, 32],
             "regression_mlp_dropout": 0.1,
@@ -36,34 +36,26 @@ class GraphRegressionTask(GraphTaskModel):
 
         # Construct sublayers:
         self._weighted_avg_of_nodes_to_graph_repr = WeightedSumGraphRepresentation(
-            graph_representation_size=self._params["graph_representation_size"] // 2,
-            num_heads=self._params["graph_aggregation_num_heads"] // 2,
+            graph_representation_size=self._params["graph_aggregation_output_size"],
+            num_heads=self._params["graph_aggregation_num_heads"],
             weighting_fun="softmax",
-            scoring_mlp_layers=[
-                l // 2 for l in self._params["graph_aggregation_layers"]
-            ],
+            scoring_mlp_layers=self._params["graph_aggregation_layers"],
             scoring_mlp_dropout_rate=self._params["graph_aggregation_dropout_rate"],
             scoring_mlp_activation_fun="elu",
-            transformation_mlp_layers=[
-                l // 2 for l in self._params["graph_aggregation_layers"]
-            ],
+            transformation_mlp_layers=self._params["graph_aggregation_layers"],
             transformation_mlp_dropout_rate=self._params[
                 "graph_aggregation_dropout_rate"
             ],
             transformation_mlp_activation_fun="elu",
         )
         self._weighted_sum_of_nodes_to_graph_repr = WeightedSumGraphRepresentation(
-            graph_representation_size=self._params["graph_representation_size"] // 2,
-            num_heads=self._params["graph_aggregation_num_heads"] // 2,
+            graph_representation_size=self._params["graph_aggregation_output_size"],
+            num_heads=self._params["graph_aggregation_num_heads"],
             weighting_fun="sigmoid",
-            scoring_mlp_layers=[
-                l // 2 for l in self._params["graph_aggregation_layers"]
-            ],
+            scoring_mlp_layers=self._params["graph_aggregation_layers"],
             scoring_mlp_dropout_rate=self._params["graph_aggregation_dropout_rate"],
             scoring_mlp_activation_fun="elu",
-            transformation_mlp_layers=[
-                l // 2 for l in self._params["graph_aggregation_layers"]
-            ],
+            transformation_mlp_layers=self._params["graph_aggregation_layers"],
             transformation_mlp_dropout_rate=self._params[
                 "graph_aggregation_dropout_rate"
             ],
@@ -79,11 +71,16 @@ class GraphRegressionTask(GraphTaskModel):
         )
 
     def build(self, input_shapes):
-        # We get the initial GNN input + results for all layers:
-        node_repr_size = (
-            input_shapes["node_features"][-1]
-            + self._params["gnn_hidden_dim"] * self._params["gnn_num_layers"]
-        )
+        if self._params["use_intermediate_gnn_results"]:
+            # We get the initial GNN input + results for all layers:
+            node_repr_size = (
+                input_shapes["node_features"][-1]
+                + self._params["gnn_hidden_dim"] * self._params["gnn_num_layers"]
+            )
+        else:
+            node_repr_size = (
+                input_shapes["node_features"][-1] + self._params["gnn_hidden_dim"]
+            )
 
         node_to_graph_repr_input = NodesToGraphRepresentationInput(
             node_embeddings=tf.TensorShape((None, node_repr_size)),
@@ -103,7 +100,9 @@ class GraphRegressionTask(GraphTaskModel):
                     )
 
             self._regression_mlp.build(
-                tf.TensorShape((None, self._params["graph_representation_size"]))
+                tf.TensorShape(
+                    (None, 2 * self._params["graph_aggregation_output_size"])
+                )
             )
 
         super().build(input_shapes)
@@ -195,7 +194,9 @@ class GraphRegressionTask(GraphTaskModel):
             mae=metrics.mean_absolute_error(y_true=labels, y_pred=predictions),
             mse=metrics.mean_squared_error(y_true=labels, y_pred=predictions),
             max_err=metrics.max_error(y_true=labels, y_pred=predictions),
-            expl_var=metrics.explained_variance_score(y_true=labels, y_pred=predictions),
+            expl_var=metrics.explained_variance_score(
+                y_true=labels, y_pred=predictions
+            ),
             r2_score=metrics.r2_score(y_true=labels, y_pred=predictions),
         )
 

@@ -30,39 +30,39 @@ class PolynomialWarmupAndDecaySchedule(
         It is computed as:
         ```python
         def scheduled_learning_rate(step):
-        if step <= warmup_steps:
-            step = warmup_steps - min(step, warmup_steps)
-            return ((learning_rate - initial_learning_rate) *
-                    (step / warmup_steps)**power
-                ) + initial_learning_rate
-        else:
-            step = min(step - warmup_steps, decay_steps)
-            return ((learning_rate - final_learning_rate) *
-                    (1 - step / decay_steps)**power
-                ) + final_learning_rate
+            if step <= warmup_steps:
+                return ((learning_rate - initial_learning_rate) *
+                        (step / warmup_steps)**power
+                    ) + initial_learning_rate
+            else:
+                step = min(step - warmup_steps, decay_steps)
+                return ((learning_rate - final_learning_rate) *
+                        (1 - step / decay_steps)**power
+                    ) + final_learning_rate
         ```
 
         You can pass this schedule directly into a `tf.keras.optimizers.Optimizer`
         as the learning rate.
 
         Args:
-        learning_rate: A scalar `float32` or `float64` `Tensor` or a
-            Python number.  The peak learning rate.
-        warmup_steps: A scalar `int32` or `int64` `Tensor` or a Python number.
-            Must be positive.  See the warmup computation above.
-        decay_steps: A scalar `int32` or `int64` `Tensor` or a Python number.
-            Must be positive.  See the decay computation above.
-        decay_steps: A scalar `int32` or `int64` `Tensor` or a Python number.
-            Must be positive.  See the decay computation above.
-        final_learning_rate: A scalar `float32` or `float64` `Tensor` or a
-            Python number.  The minimal end learning rate.
-        power: A scalar `float32` or `float64` `Tensor` or a
-            Python number.  The power of the polynomial. Defaults to linear, 1.0.
-        name: String.  Optional name of the operation.
+            learning_rate: A scalar `float32` or `float64` `Tensor` or a
+                Python number.  The peak learning rate.
+            warmup_steps: A scalar `int32` or `int64` `Tensor` or a Python number.
+                Must be positive.  See the warmup computation above.
+            decay_steps: A scalar `int32` or `int64` `Tensor` or a Python number.
+                Must be positive.  See the decay computation above.
+            initial_learning_rate: A scalar `float32` or `float64` `Tensor` or a
+                Python number.  The minimal starting learning rate.
+            final_learning_rate: A scalar `float32` or `float64` `Tensor` or a
+                Python number.  The minimal end learning rate.
+            power: A scalar `float32` or `float64` `Tensor` or a
+                Python number.  The power of the polynomial. Defaults to linear, 1.0.
+            name: String.  Optional name of the operation.
+
         Returns:
-        A 1-arg callable learning rate schedule that takes the current optimizer
-        step and outputs the decayed learning rate, a scalar `Tensor` of the same
-        type as `initial_learning_rate`.
+            A 1-arg callable learning rate schedule that takes the current optimizer
+            step and outputs the decayed learning rate, a scalar `Tensor` of the same
+            type as `initial_learning_rate`.
         """
         super(PolynomialWarmupAndDecaySchedule, self).__init__()
 
@@ -82,7 +82,6 @@ class PolynomialWarmupAndDecaySchedule(
             "warmup_steps": self.warmup_steps,
             "decay_steps": self.decay_steps,
             "power": self.power,
-            "cycle": self.cycle,
             "name": self.name,
         }
 
