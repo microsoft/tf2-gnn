@@ -52,9 +52,11 @@ class PolynomialWarmupAndDecaySchedule(
             decay_steps: A scalar `int32` or `int64` `Tensor` or a Python number.
                 Must be positive.  See the decay computation above.
             initial_learning_rate: A scalar `float32` or `float64` `Tensor` or a
-                Python number.  The minimal starting learning rate.
+                Python number, setting the initial learning rate from which we
+                warm up to `learning_rate`.
             final_learning_rate: A scalar `float32` or `float64` `Tensor` or a
-                Python number.  The minimal end learning rate.
+                Python number, setting the final learning rate to which we decay
+                from `learning_rate`.
             power: A scalar `float32` or `float64` `Tensor` or a
                 Python number.  The power of the polynomial. Defaults to linear, 1.0.
             name: String.  Optional name of the operation.
