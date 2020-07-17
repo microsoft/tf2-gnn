@@ -70,9 +70,11 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
         weighting_fun: str = "softmax",  # One of {"softmax", "sigmoid"}
         scoring_mlp_layers: List[int] = [128],
         scoring_mlp_activation_fun: str = "ReLU",
+        scoring_mlp_use_biases: bool = False,
         scoring_mlp_dropout_rate: float = 0.2,
         transformation_mlp_layers: List[int] = [128],
         transformation_mlp_activation_fun: str = "ReLU",
+        transformation_mlp_use_biases: bool = False,
         transformation_mlp_dropout_rate: float = 0.2,
         transformation_mlp_result_lower_bound: Optional[float] = None,
         transformation_mlp_result_upper_bound: Optional[float] = None,
@@ -117,40 +119,40 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
 
         self._num_heads = num_heads
         self._weighting_fun = weighting_fun.lower()
-        self._scoring_mlp_layers = scoring_mlp_layers
-        self._scoring_mlp_activation_fun = get_activation_function_by_name(
-            scoring_mlp_activation_fun
-        )
-        self._scoring_mlp_dropout_rate = scoring_mlp_dropout_rate
-        self._transformation_mlp_layers = transformation_mlp_layers
         self._transformation_mlp_activation_fun = get_activation_function_by_name(
             transformation_mlp_activation_fun
         )
-        self._transformation_mlp_dropout_rate = transformation_mlp_dropout_rate
         self._transformation_mlp_result_lower_bound = transformation_mlp_result_lower_bound
         self._transformation_mlp_result_upper_bound = transformation_mlp_result_upper_bound
+
+        # Build sub-layers:
+        if self._weighting_fun not in ("none", "average"):
+            self._scoring_mlp = MLP(
+                out_size=self._num_heads,
+                hidden_layers=scoring_mlp_layers,
+                use_biases=scoring_mlp_use_biases,
+                activation_fun=get_activation_function_by_name(
+                    scoring_mlp_activation_fun
+                ),
+                dropout_rate=scoring_mlp_dropout_rate,
+                name="ScoringMLP",
+            )
+
+        self._transformation_mlp = MLP(
+            out_size=self._graph_representation_size,
+            hidden_layers=transformation_mlp_layers,
+            use_biases=transformation_mlp_use_biases,
+            activation_fun=self._transformation_mlp_activation_fun,
+            dropout_rate=transformation_mlp_dropout_rate,
+            name="TransformationMLP",
+        )
 
     def build(self, input_shapes: NodesToGraphRepresentationInput):
         with tf.name_scope("WeightedSumGraphRepresentation"):
             if self._weighting_fun not in ("none", "average"):
-                self._scoring_mlp = MLP(
-                    out_size=self._num_heads,
-                    hidden_layers=self._scoring_mlp_layers,
-                    activation_fun=self._scoring_mlp_activation_fun,
-                    dropout_rate=self._scoring_mlp_dropout_rate,
-                    name="ScoringMLP",
-                )
                 self._scoring_mlp.build(
                     tf.TensorShape((None, input_shapes.node_embeddings[-1]))
                 )
-
-            self._transformation_mlp = MLP(
-                out_size=self._graph_representation_size,
-                hidden_layers=self._transformation_mlp_layers,
-                activation_fun=self._transformation_mlp_activation_fun,
-                dropout_rate=self._transformation_mlp_dropout_rate,
-                name="TransformationMLP",
-            )
             self._transformation_mlp.build(tf.TensorShape((None, input_shapes.node_embeddings[-1])))
 
             super().build(input_shapes)

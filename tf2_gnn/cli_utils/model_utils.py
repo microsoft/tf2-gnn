@@ -177,6 +177,10 @@ def get_model_and_dataset(
     folds_to_load: Optional[Set[DataFold]] = None,
     load_weights_only: bool = False,
 ):
+    if trained_model_file and not os.path.exists(trained_model_file):
+        print(f"W: Asked to load from {trained_model_file}, which does not exist. Ignoring.")
+        trained_model_file = None
+
     # case of a trained model file being passed, where the entire model should be loaded,
     # a new class and dataset type are not required
     if trained_model_file and not load_weights_only:

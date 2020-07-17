@@ -4,7 +4,10 @@ from typing import Dict, List, NamedTuple, Tuple, Any
 
 import tensorflow as tf
 
-from tf2_gnn.utils.param_helpers import get_activation_function, get_aggregation_function
+from tf2_gnn.utils.param_helpers import (
+    get_activation_function,
+    get_aggregation_function,
+)
 
 
 class MessagePassingInput(NamedTuple):
@@ -40,6 +43,7 @@ class MessagePassing(tf.keras.layers.Layer):
         return {
             "aggregation_function": "sum",  # One of sum, mean, max, sqrt_n
             "message_activation_function": "relu",  # One of relu, leaky_relu, elu, gelu, tanh
+            "message_activation_before_aggregation": False,  # Change to True to apply activation _before_ aggregation.
             "hidden_dim": 7,
         }
 
@@ -49,6 +53,10 @@ class MessagePassing(tf.keras.layers.Layer):
 
         aggregation_fn_name = params["aggregation_function"]
         self._aggregation_fn = get_aggregation_function(aggregation_fn_name)
+
+        self._message_activation_before_aggregation = params.get(
+            "message_activation_before_aggregation", False
+        )
 
         activation_fn_name = params["message_activation_function"]
         self._activation_fn = get_activation_function(activation_fn_name)
@@ -99,7 +107,10 @@ class MessagePassing(tf.keras.layers.Layer):
         Returns:
             float32 tensor of shape [V, hidden_dim]
         """
-        node_embeddings, adjacency_lists = inputs.node_embeddings, inputs.adjacency_lists
+        node_embeddings, adjacency_lists = (
+            inputs.node_embeddings,
+            inputs.adjacency_lists,
+        )
         num_nodes = tf.shape(node_embeddings)[0]
 
         messages_per_type = self._calculate_messages_per_type(
@@ -107,11 +118,16 @@ class MessagePassing(tf.keras.layers.Layer):
         )
 
         edge_type_to_message_targets = [
-            adjacency_list_for_edge_type[:, 1] for adjacency_list_for_edge_type in adjacency_lists
+            adjacency_list_for_edge_type[:, 1]
+            for adjacency_list_for_edge_type in adjacency_lists
         ]
 
         new_node_states = self._compute_new_node_embeddings(
-            node_embeddings, messages_per_type, edge_type_to_message_targets, num_nodes, training,
+            node_embeddings,
+            messages_per_type,
+            edge_type_to_message_targets,
+            num_nodes,
+            training,
         )  # Shape [V, H]
 
         return new_node_states
@@ -150,10 +166,17 @@ class MessagePassing(tf.keras.layers.Layer):
         message_targets = tf.concat(edge_type_to_message_targets, axis=0)  # Shape [M]
         messages = tf.concat(messages_per_type, axis=0)  # Shape [M, H]
 
+        if self._message_activation_before_aggregation:
+            messages = self._activation_fn(messages)  # Shape [M, H]
+
         aggregated_messages = self._aggregation_fn(
             data=messages, segment_ids=message_targets, num_segments=num_nodes
-        )
-        return self._activation_fn(aggregated_messages)
+        )  # Shape [V, H]
+
+        if not self._message_activation_before_aggregation:
+            aggregated_messages = self._activation_fn(aggregated_messages)  # Shape [V, H]
+
+        return aggregated_messages
 
     def _calculate_messages_per_type(
         self,
@@ -196,6 +219,7 @@ class MessagePassing(tf.keras.layers.Layer):
 
 
 MESSAGE_PASSING_IMPLEMENTATIONS: Dict[str, MessagePassing] = {}
+
 
 def register_message_passing_implementation(cls):
     """Decorator used to register a message passing class implementation"""

@@ -6,6 +6,9 @@ import tensorflow as tf
 
 from tf2_gnn import GNNInput, GNN
 from tf2_gnn.data import GraphDataset
+from tf2_gnn.utils.polynomial_warmup_and_decay_schedule import (
+    PolynomialWarmupAndDecaySchedule,
+)
 
 
 class GraphTaskModel(tf.keras.Model):
@@ -16,10 +19,13 @@ class GraphTaskModel(tf.keras.Model):
         these_hypers: Dict[str, Any] = {
             "optimizer": "Adam",  # One of "SGD", "RMSProp", "Adam"
             "learning_rate": 0.001,
-            "learning_rate_decay": 0.98,
+            "learning_rate_warmup_steps": None,
+            "learning_rate_decay_steps": None,
             "momentum": 0.85,
+            "rmsprop_rho": 0.98,  # decay of gradients in RMSProp (unused otherwise)
             "gradient_clip_value": None,  # Set to float value to clip each gradient separately
-            "gradient_clip_global_norm": None,  # Set to value to clip gradients by their norm
+            "gradient_clip_norm": None,  # Set to value to clip gradients by their norm
+            "gradient_clip_global_norm": None,  # Set to value to clip gradients by their global norm
             "use_intermediate_gnn_results": False,
         }
         params.update(these_hypers)
@@ -29,8 +35,53 @@ class GraphTaskModel(tf.keras.Model):
         super().__init__(name=name)
         self._params = params
         self._num_edge_types = dataset.num_edge_types
-        self._use_intermediate_gnn_results = params.get("use_intermediate_gnn_results", False)
-        self._train_step_counter = 0
+        self._use_intermediate_gnn_results = params.get(
+            "use_intermediate_gnn_results", False
+        )
+
+        # Keep track of the training step as a TF variable
+        self._train_step_counter = tf.Variable(
+            initial_value=0, trainable=False, dtype=tf.int32, name="training_step"
+        )
+
+        # Store a couple of descriptions for jit compilation in the build function.
+        batch_description = dataset.get_batch_tf_data_description()
+        self._batch_feature_names = tuple(batch_description.batch_features_types.keys())
+        self._batch_label_names = tuple(batch_description.batch_labels_types.keys())
+        self._batch_feature_spec = tuple(
+            tf.TensorSpec(
+                shape=batch_description.batch_features_shapes[name],
+                dtype=batch_description.batch_features_types[name],
+            )
+            for name in self._batch_feature_names
+        )
+        self._batch_label_spec = tuple(
+            tf.TensorSpec(
+                shape=batch_description.batch_labels_shapes[name],
+                dtype=batch_description.batch_labels_types[name],
+            )
+            for name in self._batch_label_names
+        )
+
+    @staticmethod
+    def _pack(input: Dict[str, Any], names: Tuple[str, ...]) -> Tuple:
+        return tuple(input[name] for name in names)
+
+    def _pack_features(self, batch_features: Dict[str, Any]) -> Tuple:
+        return self._pack(batch_features, self._batch_feature_names)
+
+    def _pack_labels(self, batch_labels: Dict[str, Any]) -> Tuple:
+        return self._pack(batch_labels, self._batch_label_names)
+
+    @staticmethod
+    def _unpack(input: Tuple, names: Tuple) -> Dict[str, Any]:
+        return {name: value for name, value in zip(names, input)}
+
+    def _unpack_features(self, batch_features: Tuple) -> Dict[str, Any]:
+        return self._unpack(batch_features, self._batch_feature_names)
+
+    def _unpack_labels(self, batch_labels: Tuple) -> Dict[str, Any]:
+        return self._unpack(batch_labels, self._batch_label_names)
 
     def build(self, input_shapes: Dict[str, Any]):
         graph_params = {
@@ -50,6 +101,18 @@ class GraphTaskModel(tf.keras.Model):
         )
 
         super().build([])
+
+        setattr(
+            self,
+            "_fast_run_step",
+            tf.function(
+                input_signature=(
+                    self._batch_feature_spec,
+                    self._batch_label_spec,
+                    tf.TensorSpec(shape=(), dtype=tf.bool),
+                )
+            )(self._fast_run_step),
+        )
 
     def get_initial_node_feature_shape(self, input_shapes) -> tf.TensorShape:
         return input_shapes["node_features"]
@@ -166,6 +229,28 @@ class GraphTaskModel(tf.keras.Model):
         if learning_rate is None:
             learning_rate = self._params["learning_rate"]
 
+            num_warmup_steps = self._params.get("learning_rate_warmup_steps")
+            num_decay_steps = self._params.get("learning_rate_decay_steps")
+            if num_warmup_steps is not None or num_decay_steps is not None:
+                initial_learning_rate = 0.00001
+                final_learning_rate = 0.00001
+                if num_warmup_steps is None:
+                    num_warmup_steps = -1  # Make sure that we have no warmup phase
+                    initial_learning_rate = learning_rate
+                if num_decay_steps is None:
+                    num_decay_steps = (
+                        1  # Value doesn't matter, but needs to be non-zero
+                    )
+                    final_learning_rate = learning_rate
+                learning_rate = PolynomialWarmupAndDecaySchedule(
+                    learning_rate=learning_rate,
+                    warmup_steps=num_warmup_steps,
+                    decay_steps=num_decay_steps,
+                    initial_learning_rate=initial_learning_rate,
+                    final_learning_rate=final_learning_rate,
+                    power=1.0,
+                )
+
         optimizer_name = self._params["optimizer"].lower()
         if optimizer_name == "sgd":
             return tf.keras.optimizers.SGD(
@@ -174,8 +259,8 @@ class GraphTaskModel(tf.keras.Model):
         elif optimizer_name == "rmsprop":
             return tf.keras.optimizers.RMSprop(
                 learning_rate=learning_rate,
-                decay=self._params["learning_rate_decay"],
                 momentum=self._params["momentum"],
+                rho=self._params["rmsprop_rho"],
             )
         elif optimizer_name == "adam":
             return tf.keras.optimizers.Adam(learning_rate=learning_rate,)
@@ -201,26 +286,76 @@ class GraphTaskModel(tf.keras.Model):
             (grad, var) for (grad, var) in gradient_variable_pairs if grad is not None
         ]
         clip_val = self._params.get("gradient_clip_value")
+        clip_norm_val = self._params.get("gradient_clip_norm")
+        clip_global_norm_val = self._params.get("gradient_clip_global_norm")
+
         if clip_val is not None:
+            if clip_norm_val is not None:
+                raise ValueError("Both 'gradient_clip_value' and 'gradient_clip_norm' are set, but can only use one at a time.")
+            if clip_global_norm_val is not None:
+                raise ValueError("Both 'gradient_clip_value' and 'gradient_clip_global_norm' are set, but can only use one at a time.")
             gradient_variable_pairs = [
                 (tf.clip_by_value(grad, -clip_val, clip_val), var)
                 for (grad, var) in gradient_variable_pairs
             ]
-
-        clip_norm_val = self._params.get("gradient_clip_global_norm")
-        if clip_norm_val is not None:
-            grads = [grad for (grad, var) in gradient_variable_pairs]
-            clipped_grads = tf.clip_by_global_norm(grads, clip_norm=clip_norm_val)
+        elif clip_norm_val is not None:
+            if clip_global_norm_val is not None:
+                raise ValueError("Both 'gradient_clip_norm' and 'gradient_clip_global_norm' are set, but can only use one at a time.")
+            gradient_variable_pairs = [
+                (tf.clip_by_norm(grad, clip_norm_val), var)
+                for (grad, var) in gradient_variable_pairs
+            ]
+        elif clip_global_norm_val is not None:
+            grads = [grad for (grad, _) in gradient_variable_pairs]
+            clipped_grads, _ = tf.clip_by_global_norm(grads, clip_norm=clip_global_norm_val)
             gradient_variable_pairs = [
                 (clipped_grad, var)
-                for (clipped_grad, (_, var)) in zip(
-                    clipped_grads, gradient_variable_pairs
-                )
+                for (clipped_grad, (_, var)) in zip(clipped_grads, gradient_variable_pairs)
             ]
 
         self._optimizer.apply_gradients(gradient_variable_pairs)
 
     # ----------------------------- Training Loop
+    def _run_step(
+        self,
+        batch_features: Dict[str, tf.Tensor],
+        batch_labels: Dict[str, tf.Tensor],
+        training: bool,
+    ) -> Dict[str, tf.Tensor]:
+        batch_features_tuple = self._pack_features(batch_features)
+        batch_labels_tuple = self._pack_labels(batch_labels)
+
+        return self._fast_run_step(batch_features_tuple, batch_labels_tuple, training)
+
+    def _fast_run_step(
+        self,
+        batch_features_tuple: Tuple[tf.Tensor],
+        batch_labels_tuple: Tuple[tf.Tensor],
+        training: bool,
+    ):
+        batch_features = self._unpack_features(batch_features_tuple)
+        batch_labels = self._unpack_labels(batch_labels_tuple)
+
+        with tf.GradientTape() as tape:
+            task_output = self(batch_features, training=training)
+            task_metrics = self.compute_task_metrics(
+                batch_features=batch_features,
+                task_output=task_output,
+                batch_labels=batch_labels,
+            )
+
+        def _training_update():
+            gradients = tape.gradient(task_metrics["loss"], self.trainable_variables)
+            self._apply_gradients(zip(gradients, self.trainable_variables))
+            self._train_step_counter.assign_add(1)
+
+        def _no_op():
+            pass
+
+        tf.cond(training, true_fn=_training_update, false_fn=_no_op)
+
+        return task_metrics
+
     def run_one_epoch(
         self, dataset: tf.data.Dataset, quiet: bool = False, training: bool = True,
     ) -> Tuple[float, float, List[Any]]:
@@ -229,23 +364,18 @@ class GraphTaskModel(tf.keras.Model):
         task_results = []
         total_loss = tf.constant(0, dtype=tf.float32)
         for step, (batch_features, batch_labels) in enumerate(dataset):
-            with tf.GradientTape() as tape:
-                task_output = self(batch_features, training=training)
-                task_metrics = self.compute_task_metrics(batch_features, task_output, batch_labels)
+            task_metrics = self._run_step(batch_features, batch_labels, training)
             total_loss += task_metrics["loss"]
             total_num_graphs += batch_features["num_graphs_in_batch"]
             task_results.append(task_metrics)
 
-            if training:
-                gradients = tape.gradient(
-                    task_metrics["loss"], self.trainable_variables
-                )
-                self._apply_gradients(zip(gradients, self.trainable_variables))
-                self._train_step_counter += 1
-
             if not quiet:
-                epoch_graph_average_loss = (total_loss / float(total_num_graphs)).numpy()
-                batch_graph_average_loss = task_metrics["loss"] / float(batch_features["num_graphs_in_batch"])
+                epoch_graph_average_loss = (
+                    total_loss / float(total_num_graphs)
+                ).numpy()
+                batch_graph_average_loss = task_metrics["loss"] / float(
+                    batch_features["num_graphs_in_batch"]
+                )
                 steps_per_second = step / (time.time() - epoch_time_start)
                 print(
                     f"   Step: {step:4d}"
@@ -268,3 +398,15 @@ class GraphTaskModel(tf.keras.Model):
         # Note: This assumes that the task output is a tensor (true for classification, regression,
         #  etc.) but subclasses implementing more complicated outputs will need to override this.
         return tf.concat(task_outputs, axis=0)
+
+    def evaluate_model(self, dataset: tf.data.Dataset) -> Dict[str, float]:
+        """Evaluate the model using metrics that make sense for its application area.
+
+        Args:
+            dataset: A dataset to evaluate on, same format as used in the training loop.
+
+        Returns:
+            Dictionary mapping metric names (e.g., "accuracy", "roc_auc") to their respective
+            values.
+        """
+        raise NotImplementedError()

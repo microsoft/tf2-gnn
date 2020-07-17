@@ -5,54 +5,21 @@ import numpy as np
 import tensorflow as tf
 
 from tf2_gnn.data import GraphDataset
-from tf2_gnn.models import GraphTaskModel
-from tf2_gnn.layers import WeightedSumGraphRepresentation, NodesToGraphRepresentationInput
+from tf2_gnn.models.graph_regression_task import GraphRegressionTask
 
 
-class GraphBinaryClassificationTask(GraphTaskModel):
+class GraphBinaryClassificationTask(GraphRegressionTask):
     @classmethod
-    def get_default_hyperparameters(cls, mp_style: Optional[str] = None) -> Dict[str, Any]:
+    def get_default_hyperparameters(
+        cls, mp_style: Optional[str] = None
+    ) -> Dict[str, Any]:
         super_params = super().get_default_hyperparameters(mp_style)
-        these_hypers: Dict[str, Any] = {
-            "graph_aggregation_num_heads": 16,
-            "graph_aggregation_hidden_layers": [128],
-            "graph_aggregation_dropout_rate": 0.2,
-        }
+        these_hypers: Dict[str, Any] = {}
         super_params.update(these_hypers)
         return super_params
 
     def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
         super().__init__(params, dataset=dataset, name=name)
-        self._node_to_graph_aggregation = None
-
-    def build(self, input_shapes):
-        with tf.name_scope(self.__class__.__name__):
-            self._node_to_graph_repr_layer = WeightedSumGraphRepresentation(
-                graph_representation_size=self._params["graph_aggregation_num_heads"],
-                num_heads=self._params["graph_aggregation_num_heads"],
-                scoring_mlp_layers=self._params["graph_aggregation_hidden_layers"],
-                scoring_mlp_dropout_rate=self._params["graph_aggregation_dropout_rate"],
-                transformation_mlp_layers=self._params["graph_aggregation_hidden_layers"],
-                transformation_mlp_dropout_rate=self._params["graph_aggregation_dropout_rate"],
-            )
-            self._node_to_graph_repr_layer.build(
-                NodesToGraphRepresentationInput(
-                    node_embeddings=tf.TensorShape(
-                        (None, input_shapes["node_features"][-1] + self._params["gnn_hidden_dim"])
-                    ),
-                    node_to_graph_map=tf.TensorShape((None)),
-                    num_graphs=tf.TensorShape(()),
-                )
-            )
-
-            self._graph_repr_to_classification_layer = tf.keras.layers.Dense(
-                units=1, activation=tf.nn.sigmoid, use_bias=True
-            )
-            self._graph_repr_to_classification_layer.build(
-                tf.TensorShape((None, self._params["graph_aggregation_num_heads"]))
-            )
-
-        super().build(input_shapes)
 
     def compute_task_output(
         self,
@@ -60,20 +27,11 @@ class GraphBinaryClassificationTask(GraphTaskModel):
         final_node_representations: tf.Tensor,
         training: bool,
     ) -> Any:
-        per_graph_results = self._node_to_graph_repr_layer(
-            NodesToGraphRepresentationInput(
-                node_embeddings=tf.concat(
-                    [batch_features["node_features"], final_node_representations], axis=-1
-                ),
-                node_to_graph_map=batch_features["node_to_graph_map"],
-                num_graphs=batch_features["num_graphs_in_batch"],
-            )
-        )  # Shape [G, graph_aggregation_num_heads]
-        per_graph_results = self._graph_repr_to_classification_layer(
-            per_graph_results
-        )  # Shape [G, 1]
+        per_graph_regression_results = super().compute_task_output(
+            batch_features, final_node_representations, training
+        )
 
-        return tf.squeeze(per_graph_results, axis=-1)
+        return tf.nn.sigmoid(per_graph_regression_results)
 
     def compute_task_metrics(
         self,
@@ -83,12 +41,15 @@ class GraphBinaryClassificationTask(GraphTaskModel):
     ) -> Dict[str, tf.Tensor]:
         ce = tf.reduce_mean(
             tf.keras.losses.binary_crossentropy(
-                y_true=batch_labels["target_value"], y_pred=task_output, from_logits=False
+                y_true=batch_labels["target_value"],
+                y_pred=task_output,
+                from_logits=False,
             )
         )
         num_correct = tf.reduce_sum(
             tf.cast(
-                tf.math.equal(batch_labels["target_value"], tf.math.round(task_output)), tf.int32
+                tf.math.equal(batch_labels["target_value"], tf.math.round(task_output)),
+                tf.int32,
             )
         )
         num_graphs = tf.cast(batch_features["num_graphs_in_batch"], tf.float32)
@@ -108,3 +69,26 @@ class GraphBinaryClassificationTask(GraphTaskModel):
         )
         epoch_acc = tf.cast(total_num_correct, tf.float32) / total_num_graphs
         return -epoch_acc.numpy(), f"Accuracy = {epoch_acc.numpy():.3f}"
+
+    def evaluate_model(self, dataset: tf.data.Dataset) -> Dict[str, float]:
+        import sklearn.metrics as metrics
+
+        predictions = self.predict(dataset).numpy()
+        rounded_preds = np.round(predictions)
+        labels = []
+        for _, batch_labels in dataset:
+            labels.append(batch_labels["target_value"])
+        labels = tf.concat(labels, axis=0).numpy()
+
+        metrics = dict(
+            acc=metrics.accuracy_score(y_true=labels, y_pred=rounded_preds),
+            balanced_acc=metrics.balanced_accuracy_score(
+                y_true=labels, y_pred=rounded_preds
+            ),
+            precicision=metrics.precision_score(y_true=labels, y_pred=rounded_preds),
+            recall=metrics.recall_score(y_true=labels, y_pred=rounded_preds),
+            f1_score=metrics.f1_score(y_true=labels, y_pred=rounded_preds),
+            roc_auc=metrics.roc_auc_score(y_true=labels, y_score=predictions),
+        )
+
+        return metrics

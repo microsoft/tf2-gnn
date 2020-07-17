@@ -1,7 +1,11 @@
 import os
+import sys
 
 import tensorflow as tf
 from dpu_utils.utils import run_and_debug
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
 
 from tf2_gnn.cli_utils import get_train_cli_arg_parser, run_train_from_args
 

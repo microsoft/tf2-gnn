@@ -107,7 +107,7 @@ def unwrap_tf_tracked_data(data: Any) -> Any:
 def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str] = {}) -> None:
     # Get the housekeeping going and start logging:
     os.makedirs(args.save_dir, exist_ok=True)
-    run_id = make_run_id(args.model, args.task)
+    run_id = make_run_id(args.model, args.task, args.run_name)
     log_file = os.path.join(args.save_dir, f"{run_id}.log")
     
     def log(msg):
@@ -119,20 +119,17 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
     tf.random.set_seed(args.random_seed)
 
     data_path = RichPath.create(args.data_path, args.azure_info)
-    try:
-        dataset, model = get_model_and_dataset(
-            msg_passing_implementation=args.model,
-            task_name=args.task,
-            data_path=data_path,
-            trained_model_file=args.load_saved_model,
-            cli_data_hyperparameter_overrides=args.data_param_override,
-            cli_model_hyperparameter_overrides=args.model_param_override,
-            hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
-            folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
-            load_weights_only=args.load_weights_only,
-        )
-    except ValueError as err:
-        print(err.args)
+    dataset, model = get_model_and_dataset(
+        msg_passing_implementation=args.model,
+        task_name=args.task,
+        data_path=data_path,
+        trained_model_file=args.load_saved_model,
+        cli_data_hyperparameter_overrides=args.data_param_override,
+        cli_model_hyperparameter_overrides=args.model_param_override,
+        hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
+        folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
+        load_weights_only=args.load_weights_only,
+    )
 
     log(f"Dataset parameters: {json.dumps(unwrap_tf_tracked_data(dataset._params))}")
     log(f"Model parameters: {json.dumps(unwrap_tf_tracked_data(model._params))}")
@@ -163,12 +160,24 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
         dataset.load_data(data_path, {DataFold.TEST})
         log(f"Restoring best model state from {trained_model_path}.")
         load_weights_verbosely(trained_model_path, model)
+
+        # Test 1: Simply compute same metrics used during training/validation:
         test_data = dataset.get_tensorflow_dataset(DataFold.TEST)
         _, _, test_results = model.run_one_epoch(test_data, training=False, quiet=args.quiet)
         test_metric, test_metric_string = model.compute_epoch_metrics(test_results)
         log(test_metric_string)
         if aml_run is not None:
             aml_run.log("task_test_metric", float(test_metric))
+
+        # Test 2: Try to compute fancier metrics, if implemented:
+        try:
+            eval_metrics = model.evaluate_model(test_data)
+            for metric_name, metric_value in eval_metrics.items():
+                log(f"{metric_name:<30}: {metric_value:8.4f}")
+                if aml_run is not None:
+                    aml_run.log(f"task_test_{metric_name}", metric_value)
+        except NotImplementedError:
+            pass  # ignore if there are no fancier metrics
 
 
 def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
@@ -274,7 +283,7 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         "--run-test",
         dest="run_test",
         action="store_true",
-        default=True,
+        default=False,
         help="Run on testset after training.",
     )
     parser.add_argument(
