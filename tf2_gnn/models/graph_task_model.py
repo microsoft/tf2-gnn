@@ -336,23 +336,29 @@ class GraphTaskModel(tf.keras.Model):
         batch_features = self._unpack_features(batch_features_tuple)
         batch_labels = self._unpack_labels(batch_labels_tuple)
 
-        with tf.GradientTape() as tape:
-            task_output = self(batch_features, training=training)
+        def _train_step():
+            with tf.GradientTape() as tape:
+                task_output = self(batch_features, training=True)
+                task_metrics = self.compute_task_metrics(
+                    batch_features=batch_features,
+                    task_output=task_output,
+                    batch_labels=batch_labels,
+                )
+            gradients = tape.gradient(task_metrics["loss"], self.trainable_variables)
+            self._apply_gradients(zip(gradients, self.trainable_variables))
+            self._train_step_counter.assign_add(1)
+            return task_metrics
+
+        def _valid_step():
+            task_output = self(batch_features, training=False)
             task_metrics = self.compute_task_metrics(
                 batch_features=batch_features,
                 task_output=task_output,
                 batch_labels=batch_labels,
             )
+            return task_metrics
 
-        def _training_update():
-            gradients = tape.gradient(task_metrics["loss"], self.trainable_variables)
-            self._apply_gradients(zip(gradients, self.trainable_variables))
-            self._train_step_counter.assign_add(1)
-
-        def _no_op():
-            pass
-
-        tf.cond(training, true_fn=_training_update, false_fn=_no_op)
+        task_metrics = tf.cond(training, true_fn=_train_step, false_fn=_valid_step)
 
         return task_metrics
 
