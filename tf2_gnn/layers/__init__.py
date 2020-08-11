@@ -1,6 +1,7 @@
 from .nodes_to_graph_representation import (
     WeightedSumGraphRepresentation,
     NodesToGraphRepresentationInput,
+    WASGraphRepresentation,
 )
 from .graph_global_exchange import (
     GraphGlobalExchangeInput,
