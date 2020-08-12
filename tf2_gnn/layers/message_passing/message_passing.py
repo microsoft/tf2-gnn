@@ -1,6 +1,6 @@
 """Message passing layer."""
 from abc import abstractmethod
-from typing import Dict, List, NamedTuple, Tuple, Any
+from typing import Dict, List, NamedTuple, Tuple, Any, Optional
 
 import tensorflow as tf
 
@@ -15,6 +15,7 @@ class MessagePassingInput(NamedTuple):
 
     node_embeddings: tf.Tensor
     adjacency_lists: Tuple[tf.Tensor, ...]
+    edge_features: Tuple[tf.Tensor, ...]
 
 
 class MessagePassing(tf.keras.layers.Layer):
@@ -47,9 +48,10 @@ class MessagePassing(tf.keras.layers.Layer):
             "hidden_dim": 7,
         }
 
-    def __init__(self, params: Dict[str, Any], **kwargs):
+    def __init__(self, params: Dict[str, Any], use_edge_features: bool = False, **kwargs):
         super().__init__(**kwargs)
         self._hidden_dim = int(params["hidden_dim"])
+        self._use_edge_features = use_edge_features
 
         aggregation_fn_name = params["aggregation_function"]
         self._aggregation_fn = get_aggregation_function(aggregation_fn_name)
@@ -66,6 +68,7 @@ class MessagePassing(tf.keras.layers.Layer):
         self,
         edge_source_states: tf.Tensor,
         edge_target_states: tf.Tensor,
+        edge_features: Optional[tf.Tensor],
         num_incoming_to_node_per_message: tf.Tensor,
         edge_type_idx: int,
         training: bool,
@@ -79,6 +82,8 @@ class MessagePassing(tf.keras.layers.Layer):
                 of each edge.
             edge_target_states: A tensor of shape [E, D] giving the node states at the target node
                 of each edge.
+            edge_features: An optional tensor of shape [E, ED], giving the edge features for each
+                each edge.
             num_incoming_to_node_per_message: A tensor of shape [E] giving the number of messages
                 entering the target node of each edge. For example, if
                 num_incoming_to_node_per_message[i] = 4, then there are 4 messages whose target
@@ -96,34 +101,32 @@ class MessagePassing(tf.keras.layers.Layer):
         """Call the message passing layer.
 
         Args:
-            inputs: A tuple containing two items:
+            inputs: A tuple containing three items:
                 node_embeddings: float32 tensor of shape [V, D], the original representation of each
                     node in the graph.
                 adjacency_lists: Tuple of L adjacency lists, represented as int32 tensors of shape
                     [E, 2]. Concretely, adjacency_lists[l][k,:] == [v, u] means that the k-th edge
                     of type l connects node v to node u.
+                edge_features: Tuple of L edge feature arrays of shape [E, ED]. Concretely,
+                    edge_features[l][k] = f means that the k-th edge of type l has features f.
             training: A bool that denotes whether we are in training mode.
 
         Returns:
             float32 tensor of shape [V, hidden_dim]
         """
-        node_embeddings, adjacency_lists = (
-            inputs.node_embeddings,
-            inputs.adjacency_lists,
-        )
-        num_nodes = tf.shape(node_embeddings)[0]
+        num_nodes = tf.shape(inputs.node_embeddings)[0]
 
         messages_per_type = self._calculate_messages_per_type(
-            adjacency_lists, node_embeddings, training
+            inputs.adjacency_lists, inputs.edge_features, inputs.node_embeddings, training
         )
 
         edge_type_to_message_targets = [
             adjacency_list_for_edge_type[:, 1]
-            for adjacency_list_for_edge_type in adjacency_lists
+            for adjacency_list_for_edge_type in inputs.adjacency_lists
         ]
 
         new_node_states = self._compute_new_node_embeddings(
-            node_embeddings,
+            inputs.node_embeddings,
             messages_per_type,
             edge_type_to_message_targets,
             num_nodes,
@@ -181,6 +184,7 @@ class MessagePassing(tf.keras.layers.Layer):
     def _calculate_messages_per_type(
         self,
         adjacency_lists: Tuple[tf.Tensor, ...],
+        edge_features: Tuple[tf.Tensor, ...],
         node_embeddings: tf.Tensor,
         training: bool = False,
     ) -> List[tf.Tensor]:
@@ -209,6 +213,7 @@ class MessagePassing(tf.keras.layers.Layer):
             messages = self._message_function(
                 edge_source_states,
                 edge_target_states,
+                edge_features[edge_type_idx] if self._use_edge_features else None,
                 num_incoming_to_node_per_message,
                 edge_type_idx,
                 training,

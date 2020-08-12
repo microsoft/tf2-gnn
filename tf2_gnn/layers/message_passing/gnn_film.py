@@ -1,12 +1,11 @@
 """Graph neural network layer using feature-wise linear modulation to compute edge messages."""
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 import tensorflow as tf
 from dpu_utils.tf2utils import MLP
 
 from .gnn_edge_mlp import GNN_Edge_MLP
-from .message_passing import MessagePassing, MessagePassingInput,register_message_passing_implementation
-from tf2_gnn.utils.constants import SMALL_NUMBER
+from .message_passing import MessagePassingInput, register_message_passing_implementation
 
 
 @register_message_passing_implementation
@@ -84,6 +83,7 @@ class GNN_FiLM(GNN_Edge_MLP):
         self,
         edge_source_states: tf.Tensor,
         edge_target_states: tf.Tensor,
+        edge_features: Optional[tf.Tensor],
         num_incoming_to_node_per_message: tf.Tensor,
         edge_type_idx: int,
         training: bool,
@@ -91,6 +91,7 @@ class GNN_FiLM(GNN_Edge_MLP):
         messages = super()._message_function(
             edge_source_states,
             edge_target_states,
+            edge_features,
             num_incoming_to_node_per_message,
             edge_type_idx,
             training,

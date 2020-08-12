@@ -1,5 +1,5 @@
 """Relation graph attention network layer."""
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 
 import tensorflow as tf
 from dpu_utils.tf2utils import unsorted_segment_log_softmax
@@ -66,17 +66,19 @@ class RGAT(MessagePassing):
         self._edge_type_to_attention_parameters: List[tf.Variable] = []
 
     def build(self, input_shapes: MessagePassingInput):
-        node_embedding_shapes = input_shapes.node_embeddings
-        adjacency_list_shapes = input_shapes.adjacency_lists
-        num_edge_types = len(adjacency_list_shapes)
+        num_edge_types = len(input_shapes.adjacency_lists)
         per_head_dim = self._hidden_dim // self._num_heads
+
+        message_layer_input_size = input_shapes.node_embeddings[-1]
+        if self._use_edge_features:
+            message_layer_input_size += input_shapes.edge_features[-1]
 
         for i in range(num_edge_types):
             with tf.name_scope(f"edge_type_{i}"):
                 mp_layer = tf.keras.layers.Dense(
                     self._hidden_dim, use_bias=False, name="Edge_weight_{}".format(i)
                 )
-                mp_layer.build(tf.TensorShape((None, node_embedding_shapes[-1])))
+                mp_layer.build(tf.TensorShape((None, message_layer_input_size)))
                 self._edge_type_to_message_computation_layer.append(mp_layer)
 
                 attention_weights = self.add_weight(
@@ -92,11 +94,16 @@ class RGAT(MessagePassing):
         self,
         edge_source_states: tf.Tensor,
         edge_target_states: tf.Tensor,
+        edge_features: Optional[tf.Tensor],
         num_incoming_to_node_per_message: tf.Tensor,
         edge_type_idx: int,
         training: bool,
     ) -> tf.Tensor:
         per_head_dim = self._hidden_dim // self._num_heads
+
+        if self._use_edge_features:
+            edge_source_states = tf.concat([edge_source_states, edge_features], axis=-1)
+            edge_target_states = tf.concat([edge_target_states, edge_features], axis=-1)
 
         # Actually do the message calculation:
         per_head_transformed_source_states = tf.reshape(

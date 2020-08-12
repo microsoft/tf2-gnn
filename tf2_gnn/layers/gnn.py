@@ -23,6 +23,7 @@ class GNNInput(NamedTuple):
 
     node_features: tf.Tensor
     adjacency_lists: Tuple[tf.Tensor, ...]
+    edge_features: Tuple[tf.Tensor, ...]
     node_to_graph_map: tf.Tensor
     num_graphs: tf.Tensor
 
@@ -77,10 +78,11 @@ class GNN(tf.keras.layers.Layer):
         message_passing_hypers.update(these_hypers)
         return message_passing_hypers
 
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: Dict[str, Any], use_edge_features: bool = False):
         """Initialise the layer."""
         super().__init__()
         self._params = params
+        self._use_edge_features = use_edge_features
         self._hidden_dim = params["hidden_dim"]
         self._num_layers = params["num_layers"]
         self._dense_every_num_layers = params["dense_every_num_layers"]
@@ -125,7 +127,6 @@ class GNN(tf.keras.layers.Layer):
         # to batch (number of nodes / number of edges) is set to None.
         initial_node_features_shape: tf.TensorShape = tensor_shapes.node_features
         variable_node_features_shape = tf.TensorShape((None, initial_node_features_shape[1]))
-        adjacency_list_shapes = tensor_shapes.adjacency_lists
         embedded_shape = tf.TensorShape((None, self._hidden_dim))
 
         with tf.name_scope(f"{self._message_passing_class.__name__}_GNN"):
@@ -143,10 +144,17 @@ class GNN(tf.keras.layers.Layer):
                 with tf.name_scope(f"Layer_{layer_idx}"):
                     with tf.name_scope("MessagePassing"):
                         self._mp_layers.append(
-                            self._message_passing_class(self._params)
+                            self._message_passing_class(
+                                self._params,
+                                use_edge_features=self._use_edge_features
+                            )
                         )
                         self._mp_layers[-1].build(
-                            MessagePassingInput(embedded_shape, adjacency_list_shapes)
+                            MessagePassingInput(
+                                embedded_shape,
+                                tensor_shapes.adjacency_lists,
+                                tensor_shapes.edge_features
+                            )
                         )
 
                     # If required, prepare for a LayerNorm:
@@ -219,7 +227,11 @@ class GNN(tf.keras.layers.Layer):
                 node_features=tf.TensorSpec(shape=variable_node_features_shape, dtype=tf.float32),
                 adjacency_lists=tuple(
                     tf.TensorSpec(shape=(None, 2), dtype=tf.int32)
-                    for _ in range(len(adjacency_list_shapes))
+                    for _ in tensor_shapes.adjacency_lists
+                ),
+                edge_features=tuple(
+                    tf.TensorSpec(shape=(None, edge_feats_shape[-1]), dtype=tf.float32)
+                    for edge_feats_shape in tensor_shapes.edge_features
                 ),
                 node_to_graph_map=tf.TensorSpec(shape=(None,), dtype=tf.int32),
                 num_graphs=tf.TensorSpec(shape=(), dtype=tf.int32),
@@ -239,6 +251,9 @@ class GNN(tf.keras.layers.Layer):
                     list for a given edge type. Concretely,
                         adjacency_list[l][k,:] == [v, u]
                     means that the k-th edge of type l connects node v to node u.
+
+                edge_features: Tuple of L edge feature arrays of shape [E, ED]. Concretely,
+                    edge_features[l][k] = f means that the k-th edge of type l has features f.
 
                 node_to_graph_map: int32 tensor of shape [V], where node_to_graph_map[v] = i
                     means that node v belongs to graph i in the batch.
@@ -260,7 +275,7 @@ class GNN(tf.keras.layers.Layer):
             A pair, first element as for return_all_representations=False, second element a  list
             of Tensors of shape [V, hidden_dim], where the first element is the original GNN
             input (after a potential projection layer) and the remaining elements are the
-            output of all GNN layers (without dropout, residual connections, dense layers 
+            output of all GNN layers (without dropout, residual connections, dense layers
             or layer norm applied).
         """
         cur_node_representations, all_node_representations = self._internal_call(inputs, training)
@@ -271,9 +286,7 @@ class GNN(tf.keras.layers.Layer):
         return cur_node_representations
 
     def _internal_call(self, inputs: GNNInput, training: bool = False):
-        initial_node_features: tf.Tensor = inputs.node_features
-        adjacency_lists = inputs.adjacency_lists
-        cur_node_representations = self._initial_projection_layer(initial_node_features)
+        cur_node_representations = self._initial_projection_layer(inputs.node_features)
 
         # Layer loop.
         last_node_representations = cur_node_representations
@@ -295,7 +308,9 @@ class GNN(tf.keras.layers.Layer):
             # Apply this message passing layer.
             cur_node_representations = mp_layer(
                 MessagePassingInput(
-                    node_embeddings=cur_node_representations, adjacency_lists=adjacency_lists
+                    node_embeddings=cur_node_representations,
+                    adjacency_lists=inputs.adjacency_lists,
+                    edge_features=inputs.edge_features,
                 ),
                 training=training,
             )

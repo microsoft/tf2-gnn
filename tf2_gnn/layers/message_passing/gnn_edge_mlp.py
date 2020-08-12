@@ -1,5 +1,5 @@
 """Graph neural network layer using MLPs to compute edge messages."""
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 import tensorflow as tf
 from dpu_utils.tf2utils import MLP
@@ -62,14 +62,16 @@ class GNN_Edge_MLP(MessagePassing):
         self._edge_type_mlps: List[tf.keras.layers.Layer] = []
 
     def build(self, input_shapes: MessagePassingInput):
-        node_embedding_shapes = input_shapes.node_embeddings
-        adjacency_list_shapes = input_shapes.adjacency_lists
-        num_edge_types = len(adjacency_list_shapes)
+        num_edge_types = len(input_shapes.adjacency_lists)
 
         if self._use_target_state_as_input:
-            edge_layer_input_size = 2 * node_embedding_shapes[-1]
+            edge_layer_input_size = 2 * input_shapes.node_embeddings[-1]
         else:
-            edge_layer_input_size = node_embedding_shapes[-1]
+            edge_layer_input_size = input_shapes.node_embeddings[-1]
+
+        # We assume that all edge types have features of the same dim, if they are present:
+        if self._use_edge_features:
+            edge_layer_input_size += input_shapes.edge_features[0][-1]
 
         for i in range(num_edge_types):
             with tf.name_scope(f"edge_type_{i}"):
@@ -85,6 +87,7 @@ class GNN_Edge_MLP(MessagePassing):
         self,
         edge_source_states: tf.Tensor,
         edge_target_states: tf.Tensor,
+        edge_features: Optional[tf.Tensor],
         num_incoming_to_node_per_message: tf.Tensor,
         edge_type_idx: int,
         training: bool,
@@ -95,6 +98,9 @@ class GNN_Edge_MLP(MessagePassing):
             )  # Shape [E, 2*D]
         else:
             edge_mlp_inputs = edge_source_states
+
+        if self._use_edge_features:
+            edge_mlp_inputs = tf.concat([edge_mlp_inputs, edge_features], axis=-1)
 
         # Actually do the message calculation:
         messages = self._edge_type_mlps[edge_type_idx](edge_mlp_inputs, training)
