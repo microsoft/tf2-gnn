@@ -67,9 +67,9 @@ class JsonLGraphPropertyDataset(JsonLGraphDataset[GraphWithPropertySampleType]):
         return super_hypers
 
     def __init__(
-        self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None,
+        self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None, **kwargs,
     ):
-        super().__init__(params, metadata=metadata)
+        super().__init__(params, metadata=metadata, **kwargs)
         self._threshold_for_classification = params["threshold_for_classification"]
 
     def _process_raw_datapoint(

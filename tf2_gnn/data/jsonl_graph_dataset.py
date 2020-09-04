@@ -36,9 +36,9 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         return super_hypers
 
     def __init__(
-        self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None,
+        self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None, **kwargs,
     ):
-        super().__init__(params, metadata=metadata)
+        super().__init__(params, metadata=metadata, **kwargs)
         self._params = params
         self._num_fwd_edge_types = params["num_fwd_edge_types"]
 
