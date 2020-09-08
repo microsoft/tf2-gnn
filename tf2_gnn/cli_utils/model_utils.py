@@ -16,7 +16,12 @@ from .task_utils import task_name_to_model_class
 from .param_helpers import override_model_params_with_hyperdrive_params
 
 
-def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> None:
+def save_model(
+    save_file: str,
+    model: GraphTaskModel,
+    dataset: GraphDataset,
+    extra_data_to_store: Dict[str, Any] = {},
+) -> None:
     data_to_store = {
         "model_class": model.__class__,
         "model_params": model._params,
@@ -26,6 +31,7 @@ def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> 
         "num_edge_types": dataset.num_edge_types,
         "node_feature_shape": dataset.node_feature_shape,
     }
+    data_to_store.update(extra_data_to_store)
     pkl_file = get_model_file_path(save_file, "pkl")
     hdf5_file = get_model_file_path(save_file, "hdf5")
     with open(pkl_file, "wb") as out_file:
