@@ -16,6 +16,7 @@ from .graph_global_exchange import (
     GraphGlobalGRUExchange,
     GraphGlobalMLPExchange,
 )
+from .graph_norm import GraphNorm, GraphNormInput
 
 
 class GNNInput(NamedTuple):
@@ -61,6 +62,7 @@ class GNN(tf.keras.layers.Layer):
             "dense_every_num_layers": 2,
             "residual_every_num_layers": 2,
             "use_inter_layer_layernorm": False,
+            "use_graphnorm": False,
             "hidden_dim": 16,
             "layer_input_dropout_rate": 0.0,
             "global_exchange_mode": "gru",  # One of "mean", "mlp", "gru"
@@ -87,6 +89,7 @@ class GNN(tf.keras.layers.Layer):
         self._dense_every_num_layers = params["dense_every_num_layers"]
         self._residual_every_num_layers = params["residual_every_num_layers"]
         self._use_inter_layer_layernorm = params["use_inter_layer_layernorm"]
+        self._use_graphnorm = params.get("use_graphnorm") or False
         self._initial_node_representation_activation_fn = get_activation_function(
             params["initial_node_representation_activation"]
         )
@@ -110,6 +113,7 @@ class GNN(tf.keras.layers.Layer):
         # Layer member variables. To be filled in in the `build` method.
         self._initial_projection_layer: tf.keras.layers.Layer = None
         self._mp_layers: List[MessagePassing] = []
+        self._graphnorm_layers: List[GraphNorm] = []
         self._inter_layer_layernorms: List[tf.keras.layers.Layer] = []
         self._dense_layers: Dict[str, tf.keras.layers.Layer] = {}
         self._global_exchange_layers: Dict[str, GraphGlobalExchange] = {}
@@ -149,6 +153,12 @@ class GNN(tf.keras.layers.Layer):
                         )
                         self._mp_layers[-1].build(
                             MessagePassingInput(embedded_shape, adjacency_list_shapes)
+                        )
+
+                    if self._use_graphnorm:
+                        self._graphnorm_layers.append(GraphNorm())
+                        self._graphnorm_layers[-1].build(
+                            GraphNormInput(embedded_shape, tf.TensorShape((None,))),
                         )
 
                     # If required, prepare for a LayerNorm:
@@ -302,6 +312,11 @@ class GNN(tf.keras.layers.Layer):
                 ),
                 training=training,
             )
+            if self._use_graphnorm:
+                cur_node_representations = self._graphnorm_layers[layer_idx](
+                    GraphNormInput(cur_node_representations, inputs.node_to_graph_map),
+                    training=training,
+                )
             all_node_representations.append(cur_node_representations)
 
             if layer_idx and layer_idx % self._global_exchange_every_num_layers == 0:
