@@ -100,7 +100,7 @@ def _add_backward_edges(
     adjacency_lists: List[List[Edge]], tied_fwd_bkwd_edge_types: Set[int]
 ) -> List[List[Edge]]:
     # Make sure the output will contain newly created lists.
-    new_adjacency_lists = [adj_list.copy() for adj_list in adjacency_lists]
+    new_adjacency_lists = deepcopy(adjacency_lists)
 
     for edge_type in range(len(adjacency_lists)):
         flipped_adjacency_list = [(dest, src) for (src, dest) in adjacency_lists[edge_type]]
