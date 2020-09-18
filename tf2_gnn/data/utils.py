@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import List, Set, Tuple, Union
 
 import numpy as np
@@ -10,6 +11,7 @@ def process_adjacency_lists(
     num_nodes: int,
     add_self_loop_edges: bool,
     tied_fwd_bkwd_edge_types: Set[int],
+    self_loop_edge_type: int = 0,
 ) -> Tuple[List[np.ndarray], np.ndarray]:
     """Process adjacency lists by adding backward edges and self loops.
 
@@ -20,6 +22,9 @@ def process_adjacency_lists(
         tied_fwd_bkwd_edge_types: For these forward edge types, the added backward edges will have
             the same type as the forward edge. For all remaining forward edge types, the backward
             edges will get a new fresh edge type.
+        self_loop_edge_type: edge type to use for the self loops. Also supports negative numbers:
+            for example, setting this to -1 will result in self loop edge type being the last one.
+            Only has effect if `add_self_loop_edges` is set.
 
     Returns:
         Processed adjacency lists (with backward edges and self loops added, and each inner list
@@ -30,7 +35,21 @@ def process_adjacency_lists(
 
     # Add self loops after adding backward edges to avoid adding loops twice.
     if add_self_loop_edges:
-        adjacency_lists = _add_self_loop_edges(adjacency_lists, num_nodes)
+        num_edge_types = len(adjacency_lists)
+
+        edge_type_lb = -(num_edge_types + 1)
+        edge_type_ub = num_edge_types
+
+        assert (
+            edge_type_lb <= self_loop_edge_type <= edge_type_ub
+        ), "Self loop edge type {} should be in range [{}, {}].".format(
+            self_loop_edge_type, edge_type_lb, edge_type_ub
+        )
+
+        if self_loop_edge_type < 0:
+            self_loop_edge_type += num_edge_types + 1
+
+        adjacency_lists = _add_self_loop_edges(adjacency_lists, num_nodes, self_loop_edge_type)
 
     type_to_num_incoming_edges = _compute_type_to_num_inedges(
         adjacency_lists=adjacency_lists, num_nodes=num_nodes
@@ -66,16 +85,22 @@ def compute_number_of_edge_types(
     return 2 * num_fwd_edge_types - len(tied_fwd_bkwd_edge_types) + int(add_self_loop_edges)
 
 
-def _add_self_loop_edges(adjacency_lists: List[List[Edge]], num_nodes: int) -> List[List[Edge]]:
+def _add_self_loop_edges(
+    adjacency_lists: List[List[Edge]], num_nodes: int, self_loop_edge_type: int = 0
+) -> List[List[Edge]]:
     self_loops = [(i, i) for i in range(num_nodes)]
-    return [self_loops] + adjacency_lists
+
+    adjacency_lists = deepcopy(adjacency_lists)
+    adjacency_lists.insert(self_loop_edge_type, self_loops)
+
+    return adjacency_lists
 
 
 def _add_backward_edges(
     adjacency_lists: List[List[Edge]], tied_fwd_bkwd_edge_types: Set[int]
 ) -> List[List[Edge]]:
     # Make sure the output will contain newly created lists.
-    new_adjacency_lists = [adj_list.copy() for adj_list in adjacency_lists]
+    new_adjacency_lists = deepcopy(adjacency_lists)
 
     for edge_type in range(len(adjacency_lists)):
         flipped_adjacency_list = [(dest, src) for (src, dest) in adjacency_lists[edge_type]]
