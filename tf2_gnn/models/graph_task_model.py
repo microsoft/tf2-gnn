@@ -72,7 +72,7 @@ class GraphTaskModel(tf.keras.Model):
 
     @staticmethod
     def _pack(input: Dict[str, Any], names: Tuple[str, ...]) -> Tuple:
-        return tuple(input[name] for name in names)
+        return tuple(input.get(name) for name in names)
 
     def _pack_features(self, batch_features: Dict[str, Any]) -> Tuple:
         return self._pack(batch_features, self._batch_feature_names)
@@ -82,7 +82,7 @@ class GraphTaskModel(tf.keras.Model):
 
     @staticmethod
     def _unpack(input: Tuple, names: Tuple) -> Dict[str, Any]:
-        return {name: value for name, value in zip(names, input)}
+        return {name: value for name, value in zip(names, input) if value is not None}
 
     def _unpack_features(self, batch_features: Tuple) -> Dict[str, Any]:
         return self._unpack(batch_features, self._batch_feature_names)
