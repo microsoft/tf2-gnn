@@ -72,9 +72,15 @@ class GraphDataset(Generic[GraphSampleType]):
             "max_nodes_per_batch": 10000,
         }
 
-    def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        params: Dict[str, Any],
+        metadata: Optional[Dict[str, Any]] = None,
+        use_worker_threads: bool = True,
+    ):
         self._params = params
         self._metadata = metadata if metadata is not None else {}
+        self._use_worker_threads = use_worker_threads
 
     @property
     def name(self) -> str:
@@ -268,7 +274,7 @@ class GraphDataset(Generic[GraphSampleType]):
         )
 
     def get_tensorflow_dataset(
-        self, data_fold: DataFold, use_worker_threads: bool = True
+        self, data_fold: DataFold, use_worker_threads: Optional[bool] = None
     ) -> tf.data.Dataset:
         """Construct a TensorFlow dataset from the _graph_batch_iterator of this class.
 
@@ -278,6 +284,10 @@ class GraphDataset(Generic[GraphSampleType]):
             The content of these is determined by the _finalise_batch method.
         """
         data_description = self.get_batch_tf_data_description()
+
+        # Use class default if not explicitly specified:
+        if use_worker_threads is None:
+            use_worker_threads = self._use_worker_threads
 
         if use_worker_threads:
             graph_batch_iterator = lambda: DoubleBufferedIterator(
