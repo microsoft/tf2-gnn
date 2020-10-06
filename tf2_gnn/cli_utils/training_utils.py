@@ -46,6 +46,7 @@ def train(
     valid_loss_list=[]
     train_metric_list=[]
     valid_metric_list=[]
+    best_model=None
     train_data = dataset.get_tensorflow_dataset(DataFold.TRAIN).prefetch(3)
     valid_data = dataset.get_tensorflow_dataset(DataFold.VALIDATION).prefetch(3)
 
@@ -90,6 +91,7 @@ def train(
                 f"  (Best epoch so far, target metric decreased to {valid_metric:.5f} from {best_valid_metric:.5f}.)",
             )
             save_model(save_file, model, dataset)
+            best_model=model
             best_valid_metric = valid_metric
             best_valid_epoch = epoch
         elif epoch - best_valid_epoch >= patience:
@@ -100,7 +102,7 @@ def train(
             )
             log_fun(f"Training took {total_time}s. Best validation metric: {best_valid_metric}",)
             break
-    return save_file,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
+    return save_file,best_model,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
 
 
 def unwrap_tf_tracked_data(data: Any) -> Any:

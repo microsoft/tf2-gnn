@@ -16,7 +16,7 @@ class HornGraphSample(GraphSample):
         current_node_index:np.ndarray,
         node_control_location:np.ndarray
     ):
-        super().__init__(adjacency_lists, node_features)
+        super().__init__(adjacency_lists, [], node_features)
         self._current_node_index=current_node_index
         self._node_label = node_label
         self._node_argument=node_argument

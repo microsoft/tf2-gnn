@@ -34,16 +34,6 @@ class GraphSample(object):
         self._type_to_node_to_num_inedges = type_to_node_to_num_inedges
         self._node_features = node_features
 
-    def __init__(
-        self,
-        adjacency_lists: List[np.ndarray],
-        node_features: np.ndarray,
-    ):
-        super().__init__()
-        self._adjacency_lists = adjacency_lists
-        self._type_to_node_to_num_inedges = []
-        self._node_features = node_features
-
     @property
     def adjacency_lists(self) -> List[np.ndarray]:
         """Adjacency information by edge type as list of ndarrays of shape [E, 2]"""
