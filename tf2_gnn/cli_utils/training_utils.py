@@ -42,6 +42,10 @@ def train(
     quiet: bool = False,
     aml_run=None,
 ):
+    train_loss_list=[]
+    valid_loss_list=[]
+    train_metric_list=[]
+    valid_metric_list=[]
     train_data = dataset.get_tensorflow_dataset(DataFold.TRAIN).prefetch(3)
     valid_data = dataset.get_tensorflow_dataset(DataFold.VALIDATION).prefetch(3)
 
@@ -69,6 +73,10 @@ def train(
         log_fun(
             f" Valid:  {valid_loss:.4f} loss | {valid_metric_string} | {valid_speed:.2f} graphs/s",
         )
+        train_loss_list.append(train_loss)
+        valid_loss_list.append(valid_loss)
+        train_metric_list.append(train_metric)
+        valid_metric_list.append(valid_metric)
 
         if aml_run is not None:
             aml_run.log("task_train_metric", float(train_metric))
@@ -92,7 +100,7 @@ def train(
             )
             log_fun(f"Training took {total_time}s. Best validation metric: {best_valid_metric}",)
             break
-    return save_file
+    return save_file,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
 
 
 def unwrap_tf_tracked_data(data: Any) -> Any:

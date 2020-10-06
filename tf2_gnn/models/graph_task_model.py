@@ -113,6 +113,8 @@ class GraphTaskModel(tf.keras.Model):
                 )
             )(self._fast_run_step),
         )
+    def build_horn_graph(self):
+        super().build([])
 
     def get_initial_node_feature_shape(self, input_shapes) -> tf.TensorShape:
         return input_shapes["node_features"]

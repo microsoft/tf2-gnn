@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import re
 from typing import Dict, Any, Optional, Set, Type
 
 import h5py
@@ -106,10 +107,10 @@ def load_weights_verbosely(
     var_name_to_weights = data_to_load.get("model_weights")
     if var_name_to_weights is None:
         var_name_to_weights = _read_weights_from_hdf5(save_file)
-
+    first_layer_name = re.sub(r'(?<!^)(?=[A-Z])', '_', type(model).__name__).lower() + "/"
     tfvar_weight_tuples = []
     for var_name, tfvar in var_name_to_variable.items():
-        saved_weight = var_name_to_weights.get(var_name)
+        saved_weight = var_name_to_weights.get(first_layer_name+var_name)
         if saved_weight is None:
             if warn_about_initialisations:
                 print(f"I: Weights for {var_name} freshly initialised.")
@@ -118,7 +119,9 @@ def load_weights_verbosely(
 
     if warn_about_ignored:
         for var_name in var_name_to_weights.keys():
-            if var_name not in var_name_to_variable:
+            #if var_name not in var_name_to_variable:
+            var_name_without_first_layer_name = var_name[var_name.find("/") + 1:]
+            if var_name_without_first_layer_name not in var_name_to_variable:
                 print(f"I: Model does not use saved weights for {var_name}.")
 
     K.batch_set_value(tfvar_weight_tuples)
