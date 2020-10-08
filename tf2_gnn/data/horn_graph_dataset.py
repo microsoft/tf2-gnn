@@ -217,10 +217,10 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
             if len(adjacency_list) > 0:
                 batch_features[f"adjacency_list_{i}"] = np.concatenate(adjacency_list)
             else:
-                batch_features[f"adjacency_list_{0}"] = np.zeros(shape=(0, 2),
+                batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, 2),
                                                                  dtype=np.int32)
-                batch_features[f"adjacency_list_{1}"] = np.zeros(shape=(0, 3),
-                                                                 dtype=np.int32)
+                # batch_features[f"adjacency_list_{1}"] = np.zeros(shape=(0, 3),
+                #                                                  dtype=np.int32)
 
         #batch_features, batch_labels = super()._finalise_batch(raw_batch)
         batch_features["node_argument"] = raw_batch["node_argument"]
