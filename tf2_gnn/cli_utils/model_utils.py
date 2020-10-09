@@ -16,31 +16,7 @@ from .task_utils import task_name_to_model_class
 from .param_helpers import override_model_params_with_hyperdrive_params
 
 
-def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> None:
-    data_to_store = {
-        "model_class": model.__class__,
-        "model_params": model._params,
-        "dataset_class": dataset.__class__,
-        "dataset_params": dataset._params,
-        "dataset_metadata": dataset._metadata,
-        "num_edge_types": dataset.num_edge_types,
-        "node_feature_shape": dataset.node_feature_shape,
-    }
-    pkl_file = get_model_file_path(save_file, "pkl")
-    hdf5_file = get_model_file_path(save_file, "hdf5")
-    with open(pkl_file, "wb") as out_file:
-        pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
-    model.save_weights(hdf5_file, save_format="h5")
-    print(f"   (Stored model metadata to {pkl_file} and weights to {hdf5_file})")
-
-
-def load_weights_verbosely(
-    save_file: str,
-    model: GraphTaskModel,
-    warn_about_initialisations: bool = True,
-    warn_about_ignored: bool = True,
-):
-    hdf5_save_file = get_model_file_path(save_file, "hdf5")
+def _get_name_to_variable_map(model: GraphTaskModel) -> Dict[str, tf.Variable]:
     var_name_to_variable = {}
     var_names_unique = True
     for var in model.variables:
@@ -55,7 +31,48 @@ def load_weights_verbosely(
         raise ValueError(
             "Model variables have duplicate names, making weight restoring impossible."
         )
+    return var_name_to_variable
 
+
+def save_model(
+    save_file: str,
+    model: GraphTaskModel,
+    dataset: GraphDataset,
+    extra_data_to_store: Dict[str, Any] = {},
+    store_weights_in_pkl: bool = False,
+) -> None:
+    data_to_store = {
+        "model_class": model.__class__,
+        "model_params": model._params,
+        "dataset_class": dataset.__class__,
+        "dataset_params": dataset._params,
+        "dataset_metadata": dataset._metadata,
+        "num_edge_types": dataset.num_edge_types,
+        "node_feature_shape": dataset.node_feature_shape,
+    }
+    if store_weights_in_pkl:
+        var_name_to_variable = _get_name_to_variable_map(model)
+        var_name_to_weights = {
+            name: var.value().numpy() for name, var in var_name_to_variable.items()
+        }
+        data_to_store["model_weights"] = var_name_to_weights
+
+    data_to_store.update(extra_data_to_store)
+
+    pkl_file = get_model_file_path(save_file, "pkl")
+    with open(pkl_file, "wb") as out_file:
+        pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
+
+    if store_weights_in_pkl:
+        print(f"   (Stored model metadata and weights to {pkl_file}).")
+    else:
+        hdf5_file = get_model_file_path(save_file, "hdf5")
+        model.save_weights(hdf5_file, save_format="h5")
+        print(f"   (Stored model metadata to {pkl_file} and weights to {hdf5_file})")
+
+
+def _read_weights_from_hdf5(save_file):
+    hdf5_save_file = get_model_file_path(save_file, "hdf5")
     var_name_to_weights = {}
 
     def hdf5_item_visitor(name, item):
@@ -72,6 +89,23 @@ def load_weights_verbosely(
         # For some reason, the first layer of attributes is auto-generated names instead of actual names:
         for model_sublayer in data_hdf5.values():
             model_sublayer.visititems(hdf5_item_visitor)
+
+    return var_name_to_weights
+
+
+def load_weights_verbosely(
+    save_file: str,
+    model: GraphTaskModel,
+    warn_about_initialisations: bool = True,
+    warn_about_ignored: bool = True,
+):
+    var_name_to_variable = _get_name_to_variable_map(model)
+
+    with open(get_model_file_path(save_file, "pkl"), "rb") as in_file:
+        data_to_load = pickle.load(in_file)
+    var_name_to_weights = data_to_load.get("model_weights")
+    if var_name_to_weights is None:
+        var_name_to_weights = _read_weights_from_hdf5(save_file)
 
     tfvar_weight_tuples = []
     for var_name, tfvar in var_name_to_variable.items():
