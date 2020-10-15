@@ -46,11 +46,6 @@ def train_loop(
     valid_loss_list=[]
     train_metric_list=[]
     valid_metric_list=[]
-    best_model=None
-    train_data = dataset.get_tensorflow_dataset(DataFold.TRAIN).prefetch(3)
-    valid_data = dataset.get_tensorflow_dataset(DataFold.VALIDATION).prefetch(3)
-    save_file = os.path.join(save_dir, f"{run_id}_best.pkl")
-
     _, _, initial_valid_results = model.run_one_epoch(valid_data, training=False, quiet=quiet)
     best_valid_metric, best_val_str = model.compute_epoch_metrics(initial_valid_results)
     log_fun(f"Initial valid metric: {best_val_str}.")
@@ -85,16 +80,14 @@ def train_loop(
             aml_run.log("task_valid_metric", float(valid_metric))
             aml_run.log("valid_speed", float(valid_speed))
 
-        # Save if good enough.
-        if valid_metric < best_valid_metric:
-            log_fun(
-                f"  (Best epoch so far, target metric decreased to {valid_metric:.5f} from {best_valid_metric:.5f}.)",
-            )
-            save_model(save_file, model, dataset)
-            best_model=model
-
-            best_valid_metric = valid_metric
-            best_valid_epoch = epoch
+            # Save if good enough.
+            if valid_metric < best_valid_metric:
+                log_fun(
+                    f"  (Best epoch so far, target metric decreased to {valid_metric:.5f} from {best_valid_metric:.5f}.)",
+                )
+                save_model_fun(model)
+                best_valid_metric = valid_metric
+                best_valid_epoch = epoch
         elif epoch - best_valid_epoch >= patience:
             total_time = time.time() - train_time_start
             log_fun(
@@ -103,8 +96,7 @@ def train_loop(
             )
             log_fun(f"Training took {total_time}s. Best validation metric: {best_valid_metric}",)
             break
-
-    return best_valid_metric
+    return best_valid_metric,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
 
 
 def train(
@@ -126,7 +118,7 @@ def train(
     def save_model_fun(model: GraphTaskModel):
         save_model(save_file, model, dataset)
 
-    train_loop(
+    best_valid_metric,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list=train_loop(
         model,
         train_data,
         valid_data,
@@ -138,7 +130,7 @@ def train(
         aml_run=aml_run,
     )
 
-    return save_file,best_model,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
+    return save_file,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
 
 
 

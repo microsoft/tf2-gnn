@@ -190,13 +190,13 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         # print("sample adjacent list",len(graph_sample.adjacency_lists))
 
         for edge_type_idx, (batch_adjacency_list,sample_adjacency_list) in enumerate(zip(raw_batch["adjacency_lists"],graph_sample.adjacency_lists)):
-            edge_number=sample_adjacency_list.shape[1]
-            # print("sample_adjacency_list.shape",sample_adjacency_list.shape)
-            # print("edge_number",edge_number)
-            batch_adjacency_list.append(
-                graph_sample.adjacency_lists[edge_type_idx].reshape(-1, edge_number)
-                 + offset #offset
-            )
+
+            if len(sample_adjacency_list)!=0:
+                edge_number = sample_adjacency_list.shape[1]
+                batch_adjacency_list.append(
+                    graph_sample.adjacency_lists[edge_type_idx].reshape(-1, edge_number)
+                     + offset #offset
+                )
             #print("graph_sample.adjacency_lists",graph_sample.adjacency_lists[edge_type_idx] + offset)
 
         raw_batch["node_argument"].extend(graph_sample._node_argument + offset)
@@ -219,8 +219,11 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
             else:
                 batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, 2),
                                                                  dtype=np.int32)
-                # batch_features[f"adjacency_list_{1}"] = np.zeros(shape=(0, 3),
-                #                                                  dtype=np.int32)
+        # for i, (adjacency_list,edge_num) in enumerate(zip(raw_batch["adjacency_lists"],self._node_number_per_edge_type)):
+        #     if len(adjacency_list) > 0:
+        #         batch_features[f"adjacency_list_{i}"] = np.concatenate(adjacency_list)
+        #     else:
+        #         batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, edge_num),dtype=np.int32)
 
         #batch_features, batch_labels = super()._finalise_batch(raw_batch)
         batch_features["node_argument"] = raw_batch["node_argument"]
