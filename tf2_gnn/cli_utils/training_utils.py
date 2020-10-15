@@ -31,14 +31,14 @@ def log_line(log_file: str, msg: str):
     print(msg)
 
 
-def train(
+def train_loop(
     model: GraphTaskModel,
-    dataset: GraphDataset,
-    log_fun: Callable[[str], None],
-    run_id: str,
+    train_data: tf.data.Dataset,
+    valid_data: tf.data.Dataset,
     max_epochs: int,
     patience: int,
-    save_dir: str,
+    log_fun: Callable[[str], None],
+    save_model_fun: Callable[[GraphTaskModel], None],
     quiet: bool = False,
     aml_run=None,
 ):
@@ -49,15 +49,15 @@ def train(
     best_model=None
     train_data = dataset.get_tensorflow_dataset(DataFold.TRAIN).prefetch(3)
     valid_data = dataset.get_tensorflow_dataset(DataFold.VALIDATION).prefetch(3)
-
     save_file = os.path.join(save_dir, f"{run_id}_best.pkl")
 
     _, _, initial_valid_results = model.run_one_epoch(valid_data, training=False, quiet=quiet)
     best_valid_metric, best_val_str = model.compute_epoch_metrics(initial_valid_results)
     log_fun(f"Initial valid metric: {best_val_str}.")
-    save_model(save_file, model, dataset)
+    save_model_fun(model)
     best_valid_epoch = 0
     train_time_start = time.time()
+
     for epoch in range(1, max_epochs + 1):
         log_fun(f"== Epoch {epoch}")
         train_loss, train_speed, train_results = model.run_one_epoch(
@@ -92,6 +92,7 @@ def train(
             )
             save_model(save_file, model, dataset)
             best_model=model
+
             best_valid_metric = valid_metric
             best_valid_epoch = epoch
         elif epoch - best_valid_epoch >= patience:
@@ -102,7 +103,43 @@ def train(
             )
             log_fun(f"Training took {total_time}s. Best validation metric: {best_valid_metric}",)
             break
+
+    return best_valid_metric
+
+
+def train(
+    model: GraphTaskModel,
+    dataset: GraphDataset,
+    log_fun: Callable[[str], None],
+    run_id: str,
+    max_epochs: int,
+    patience: int,
+    save_dir: str,
+    quiet: bool = False,
+    aml_run=None,
+):
+    train_data = dataset.get_tensorflow_dataset(DataFold.TRAIN).prefetch(3)
+    valid_data = dataset.get_tensorflow_dataset(DataFold.VALIDATION).prefetch(3)
+
+    save_file = os.path.join(save_dir, f"{run_id}_best.pkl")
+
+    def save_model_fun(model: GraphTaskModel):
+        save_model(save_file, model, dataset)
+
+    train_loop(
+        model,
+        train_data,
+        valid_data,
+        max_epochs=max_epochs,
+        patience=patience,
+        log_fun=log_fun,
+        save_model_fun=save_model_fun,
+        quiet=quiet,
+        aml_run=aml_run,
+    )
+
     return save_file,best_model,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
+
 
 
 def unwrap_tf_tracked_data(data: Any) -> Any:
