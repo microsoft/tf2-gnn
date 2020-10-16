@@ -80,14 +80,14 @@ def train_loop(
             aml_run.log("task_valid_metric", float(valid_metric))
             aml_run.log("valid_speed", float(valid_speed))
 
-            # Save if good enough.
-            if valid_metric < best_valid_metric:
-                log_fun(
-                    f"  (Best epoch so far, target metric decreased to {valid_metric:.5f} from {best_valid_metric:.5f}.)",
-                )
-                save_model_fun(model)
-                best_valid_metric = valid_metric
-                best_valid_epoch = epoch
+        # Save if good enough.
+        if valid_metric < best_valid_metric:
+            log_fun(
+                f"  (Best epoch so far, target metric decreased to {valid_metric:.5f} from {best_valid_metric:.5f}.)",
+            )
+            save_model_fun(model)
+            best_valid_metric = valid_metric
+            best_valid_epoch = epoch
         elif epoch - best_valid_epoch >= patience:
             total_time = time.time() - train_time_start
             log_fun(
