@@ -11,16 +11,18 @@ class HornGraphSample(GraphSample):
         self,
         adjacency_lists: List[np.ndarray],
         node_features: np.ndarray,
+        node_indices:np.ndarray,
         node_label: np.ndarray,
-        node_argument: np.ndarray,
-        current_node_index:np.ndarray,
-        node_control_location:np.ndarray
+        node_argument: np.ndarray=[],
+        current_node_index:np.ndarray=[],
+        node_control_location:np.ndarray=[]
     ):
         super().__init__(adjacency_lists, [], node_features)
-        self._current_node_index=current_node_index
         self._node_label = node_label
+        self._node_indices=node_indices
         self._node_argument=node_argument
         self._node_control_location=node_control_location
+        self._current_node_index = current_node_index
 
     @property
     def node_label(self) -> np.ndarray:
@@ -125,16 +127,16 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
             "node_features": tf.int32,
             "node_to_graph_map": tf.int32,
             "num_graphs_in_batch": tf.int32,
-            "node_argument": tf.int32,
-            "current_node_index":tf.int32
+            "label_node_indices": tf.int32
+            #"current_node_index":tf.int32
         }
         #print("self.node_feature_shape",self.node_feature_shape)
         batch_features_shapes = {
             "node_features": (None, ),  #+ self.node_feature_shape,  #no offset in minibatch
             "node_to_graph_map": (None,),
             "num_graphs_in_batch": (),
-            "node_argument": (None, ),
-            "current_node_index":(None,)
+            "label_node_indices": (None, )
+            #"current_node_index":(None,)
         }
         for edge_type_idx, edge_number in enumerate(self._node_number_per_edge_type):
             batch_features_types[f"adjacency_list_{edge_type_idx}"] = tf.int32
@@ -163,9 +165,9 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
             "node_to_graph_map": [],
             "num_graphs_in_batch": 0,
             "num_nodes_in_batch": 0,
-            "node_argument":[],
-            "node_labels":[],
-            "current_node_index":[]
+            "label_node_indices":[],
+            "node_labels":[]
+            #"current_node_index":[]
         }
         return new_batch
 
@@ -199,9 +201,9 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
                 )
             #print("graph_sample.adjacency_lists",graph_sample.adjacency_lists[edge_type_idx] + offset)
 
-        raw_batch["node_argument"].extend(graph_sample._node_argument + offset)
+        raw_batch["label_node_indices"].extend(graph_sample._node_indices + offset)
         raw_batch["node_labels"].extend(graph_sample._node_label)
-        raw_batch["current_node_index"].extend(graph_sample._current_node_index)
+        #raw_batch["current_node_index"].extend(graph_sample._current_node_index)
 
     def _finalise_batch(self, raw_batch) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         batch_features: Dict[str, Any] = {}
@@ -226,8 +228,8 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         #         batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, edge_num),dtype=np.int32)
 
         #batch_features, batch_labels = super()._finalise_batch(raw_batch)
-        batch_features["node_argument"] = raw_batch["node_argument"]
-        batch_features["current_node_index"] = raw_batch["current_node_index"]
+        batch_features["label_node_indices"] = raw_batch["label_node_indices"]
+        #batch_features["current_node_index"] = raw_batch["current_node_index"]
         return batch_features, batch_labels
 
 def pickleRead(pickle_file_name, path=""):
