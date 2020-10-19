@@ -122,8 +122,8 @@ class MessagePassing(tf.keras.layers.Layer):
                 node_embeddings: float32 tensor of shape [V, D], the original representation of each
                     node in the graph.
                 adjacency_lists: Tuple of L adjacency lists, represented as int32 tensors of shape
-                    [E, 2]. Concretely, adjacency_lists[l][k,:] == [v, u] means that the k-th edge
-                    of type l connects node v to node u.
+                    [E, n]. Concretely, adjacency_lists[l][k,:] == [v1,v2,...,vn] means that the k-th edge
+                    of type l connects node v1 to node vn.
             training: A bool that denotes whether we are in training mode.
 
         Returns:
