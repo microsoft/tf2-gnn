@@ -2,7 +2,7 @@ import json
 import os
 import pickle
 import re
-from typing import Dict, Any, Optional, Set, Type
+from typing import Dict, Any, Optional, Set, Type, Callable
 
 import h5py
 import numpy as np
@@ -18,7 +18,7 @@ from .param_helpers import override_model_params_with_hyperdrive_params
 
 
 def _get_name_to_variable_map(model: GraphTaskModel) -> Dict[str, tf.Variable]:
-    var_name_to_variable = {}
+    var_name_to_variable: Dict[str, tf.Variable] = {}
     var_names_unique = True
     for var in model.variables:
         if var.name in var_name_to_variable:
@@ -94,11 +94,27 @@ def _read_weights_from_hdf5(save_file):
     return var_name_to_weights
 
 
+# This map helps to load weights from old version of the library in cases where we have changed
+# the naming of variables inbetween versions:
+BACKWARD_COMPAT_WEIGHT_NAME_MAP = {
+    "/Global_Exchange/graph_global_mean_exchange/": "/Global_Exchange/GraphGlobalMeanExchange/",
+    "/Global_Exchange/graph_global_gru_exchange/": "/Global_Exchange/GraphGlobalGRUExchange/",
+    "/Global_Exchange/graph_global_mlp_exchange/": "/Global_Exchange/GraphGlobalMLPExchange/",
+}
+
+
+def backward_compat_weight_renaming_fn(weight_name: str) -> str:
+    for old_name, new_name in BACKWARD_COMPAT_WEIGHT_NAME_MAP.items():
+        weight_name = weight_name.replace(old_name, new_name)
+    return weight_name
+
+
 def load_weights_verbosely(
     save_file: str,
     model: GraphTaskModel,
     warn_about_initialisations: bool = True,
     warn_about_ignored: bool = True,
+    weight_name_to_var_name: Optional[Callable[[str], str]] = backward_compat_weight_renaming_fn,
 ):
     var_name_to_variable = _get_name_to_variable_map(model)
 
@@ -107,21 +123,33 @@ def load_weights_verbosely(
     var_name_to_weights = data_to_load.get("model_weights")
     if var_name_to_weights is None:
         var_name_to_weights = _read_weights_from_hdf5(save_file)
+
     first_layer_name = re.sub(r'(?<!^)(?=[A-Z])', '_', type(model).__name__).lower() + "/"
+
+
+    if weight_name_to_var_name is not None:
+        remapped_var_name_to_weights = {}
+        for weight_name, weight in var_name_to_weights.items():
+            remapped_var_name_to_weights[weight_name_to_var_name(weight_name)] = weight
+        var_name_to_weights = remapped_var_name_to_weights
+
     tfvar_weight_tuples = []
+    used_var_names = set()
     for var_name, tfvar in var_name_to_variable.items():
         saved_weight = var_name_to_weights.get(first_layer_name+var_name)
         if saved_weight is None:
             if warn_about_initialisations:
                 print(f"I: Weights for {var_name} freshly initialised.")
         else:
+            used_var_names.add(var_name)
             tfvar_weight_tuples.append((tfvar, saved_weight))
 
     if warn_about_ignored:
         for var_name in var_name_to_weights.keys():
             #if var_name not in var_name_to_variable:
-            var_name_without_first_layer_name = var_name[var_name.find("/") + 1:]
-            if var_name_without_first_layer_name not in var_name_to_variable:
+            #var_name_without_first_layer_name = var_name[var_name.find("/") + 1:]
+            #if var_name_without_first_layer_name not in var_name_to_variable:
+            if var_name not in used_var_names:
                 print(f"I: Model does not use saved weights for {var_name}.")
 
     K.batch_set_value(tfvar_weight_tuples)
