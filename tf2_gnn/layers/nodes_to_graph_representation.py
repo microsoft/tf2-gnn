@@ -227,3 +227,88 @@ class WeightedSumGraphRepresentation(NodesToGraphRepresentation):
             )  # Shape [G, GD]
 
         return graph_reprs
+
+
+class WASGraphRepresentation(NodesToGraphRepresentation):
+    """_W_eighted _A_verage and _S_um graph representation.
+    """
+
+    def __init__(
+        self,
+        graph_representation_size: int = 128,
+        num_heads: int = 8,
+        pooling_mlp_layers: List[int] = [128, 128],
+        pooling_mlp_activation_fun: str = "elu",
+        pooling_mlp_use_biases: bool = True,
+        pooling_mlp_dropout_rate: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(graph_representation_size, **kwargs)
+
+        self.__weighted_avg_graph_repr_layer = WeightedSumGraphRepresentation(
+            graph_representation_size=graph_representation_size,
+            num_heads=num_heads,
+            weighting_fun="softmax",
+            scoring_mlp_layers=pooling_mlp_layers,
+            scoring_mlp_dropout_rate=pooling_mlp_dropout_rate,
+            scoring_mlp_use_biases=pooling_mlp_use_biases,
+            scoring_mlp_activation_fun=pooling_mlp_activation_fun,
+            transformation_mlp_layers=pooling_mlp_layers,
+            transformation_mlp_dropout_rate=pooling_mlp_dropout_rate,
+            transformation_mlp_use_biases=pooling_mlp_use_biases,
+            transformation_mlp_activation_fun=pooling_mlp_activation_fun,
+        )
+
+        self.__weighted_sum_graph_repr_layer = WeightedSumGraphRepresentation(
+            graph_representation_size=graph_representation_size,
+            num_heads=num_heads,
+            weighting_fun="sigmoid",
+            scoring_mlp_layers=pooling_mlp_layers,
+            scoring_mlp_dropout_rate=pooling_mlp_dropout_rate,
+            scoring_mlp_use_biases=pooling_mlp_use_biases,
+            scoring_mlp_activation_fun=pooling_mlp_activation_fun,
+            transformation_mlp_layers=pooling_mlp_layers,
+            transformation_mlp_dropout_rate=pooling_mlp_dropout_rate,
+            transformation_mlp_use_biases=pooling_mlp_use_biases,
+            transformation_mlp_activation_fun=pooling_mlp_activation_fun,
+        )
+
+        self.__out_projection = tf.keras.layers.Dense(
+            units=graph_representation_size, use_bias=False, activation=None,
+        )
+
+    def build(self, input_shapes: NodesToGraphRepresentationInput):
+        with tf.name_scope(self.__class__.__name__):
+            with tf.name_scope("WeightedAvgGraphRepresentation"):
+                self.__weighted_avg_graph_repr_layer.build(input_shapes)
+
+            with tf.name_scope("WeightedSumGraphRepresentation"):
+                self.__weighted_sum_graph_repr_layer.build(input_shapes)
+
+            self.__out_projection.build(
+                tf.TensorShape((None, 2 * self._graph_representation_size))
+            )
+
+            super().build(input_shapes)
+
+    @tf.function(
+        input_signature=(
+            NodesToGraphRepresentationInput(
+                node_embeddings=tf.TensorSpec(
+                    shape=tf.TensorShape((None, None)), dtype=tf.float32
+                ),
+                node_to_graph_map=tf.TensorSpec(
+                    shape=tf.TensorShape((None,)), dtype=tf.int32
+                ),
+                num_graphs=tf.TensorSpec(shape=(), dtype=tf.int32),
+            ),
+            tf.TensorSpec(shape=(), dtype=tf.bool),
+        )
+    )
+    def call(self, inputs: NodesToGraphRepresentationInput, training: bool = False):
+        avg_graph_repr = self.__weighted_avg_graph_repr_layer(inputs, training)
+        sum_graph_repr = self.__weighted_sum_graph_repr_layer(inputs, training)
+
+        return self.__out_projection(
+            tf.concat([avg_graph_repr, sum_graph_repr], axis=-1), training=training
+        )
