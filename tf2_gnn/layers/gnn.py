@@ -221,8 +221,11 @@ class GNN(tf.keras.layers.Layer):
             GNNInput(
                 node_features=tf.TensorSpec(shape=variable_node_features_shape, dtype=tf.float32),
                 adjacency_lists=tuple(
-                    tf.TensorSpec(shape=(None, 2), dtype=tf.int32)
-                    for _ in range(len(adjacency_list_shapes))
+                    # tf.TensorSpec(shape=(None, 2), dtype=tf.int32)
+                    # for _ in range(len(adjacency_list_shapes))
+                    tf.TensorSpec(shape=(None, edges[1]), dtype = tf.int32)
+                    for edges in  adjacency_list_shapes
+                    #for _, edges in zip(range(len(adjacency_list_shapes)), adjacency_list_shapes)
                 ),
                 node_to_graph_map=tf.TensorSpec(shape=(None,), dtype=tf.int32),
                 num_graphs=tf.TensorSpec(shape=(), dtype=tf.int32),
