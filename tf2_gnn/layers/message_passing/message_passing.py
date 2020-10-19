@@ -101,16 +101,18 @@ class MessagePassing(tf.keras.layers.Layer):
         adjacency_list = input_shapes.adjacency_lists
         num_edge_types = len(adjacency_list)
 
-        for i,adjacency_list_for_edge_type in enumerate(adjacency_list):
+        for i, adjacency_list_for_edge_type in enumerate(adjacency_list):
             edge_arity = adjacency_list_for_edge_type[1]
+            # print("edge_arity", adjacency_list_for_edge_type)
             edge_layer_input_size = tf.TensorShape((None, edge_arity * node_embedding_shapes[-1]))
-            for endpoint_idx in range(edge_arity):
-                # with tf.name_scope(f"edge_type_{i}"):
-                mlp = MLP(
-                    out_size=self._hidden_dim, hidden_layers=self._num_edge_MLP_hidden_layers
-                )
-                mlp.build(edge_layer_input_size)
-                self._hyperedge_type_mlps.append(mlp)
+            with tf.name_scope(f"edge_type_{i}"):
+                for endpoint_idx in range(edge_arity):
+                    with tf.name_scope(f"edge_arity_{endpoint_idx}"):
+                        mlp = MLP(out_size=self._hidden_dim, hidden_layers=self._num_edge_MLP_hidden_layers)
+                        # mlp=tf.keras.layers.Dense(units=self._hidden_dim,use_bias=True,activation=tf.nn.relu)
+                        # mlp.build(edge_layer_input_size)
+                        self._hyperedge_type_mlps.append(mlp)
+                        self._hyperedge_type_mlps[-1].build(edge_layer_input_size)
 
         super().build(input_shapes)
 
