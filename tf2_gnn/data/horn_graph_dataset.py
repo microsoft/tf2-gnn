@@ -215,17 +215,13 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         else:
             batch_features["node_to_graph_map"] = np.concatenate(raw_batch["node_to_graph_map"])
         batch_features["num_graphs_in_batch"] = raw_batch["num_graphs_in_batch"]
-        for i, adjacency_list in enumerate(raw_batch["adjacency_lists"]):
+        for i, (adjacency_list, edge_num) in enumerate(
+                zip(raw_batch["adjacency_lists"], self._node_number_per_edge_type)):
             if len(adjacency_list) > 0:
                 batch_features[f"adjacency_list_{i}"] = np.concatenate(adjacency_list)
             else:
-                batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, 2),
-                                                                 dtype=np.int32)
-        # for i, (adjacency_list,edge_num) in enumerate(zip(raw_batch["adjacency_lists"],self._node_number_per_edge_type)):
-        #     if len(adjacency_list) > 0:
-        #         batch_features[f"adjacency_list_{i}"] = np.concatenate(adjacency_list)
-        #     else:
-        #         batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, edge_num),dtype=np.int32)
+                batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, edge_num), dtype=np.int32)
+                # batch_features[f"adjacency_list_{1}"] = np.zeros(shape=(0, 3),dtype=np.int32)
 
         #batch_features, batch_labels = super()._finalise_batch(raw_batch)
         batch_features["label_node_indices"] = raw_batch["label_node_indices"]
