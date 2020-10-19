@@ -139,16 +139,15 @@ def load_weights_verbosely(
         saved_weight = var_name_to_weights.get(first_layer_name+var_name)
         if saved_weight is None:
             if warn_about_initialisations:
-                print(f"I: Weights for {var_name} freshly initialised.")
+                print(f"I: Weights for {first_layer_name+var_name} freshly initialised.")
         else:
-            used_var_names.add(var_name)
+            used_var_names.add(first_layer_name+var_name)
             tfvar_weight_tuples.append((tfvar, saved_weight))
 
     if warn_about_ignored:
         for var_name in var_name_to_weights.keys():
-            #if var_name not in var_name_to_variable:
             #var_name_without_first_layer_name = var_name[var_name.find("/") + 1:]
-            #if var_name_without_first_layer_name not in var_name_to_variable:
+            #if var_name_without_first_layer_name not in used_var_names:
             if var_name not in used_var_names:
                 print(f"I: Model does not use saved weights for {var_name}.")
 
