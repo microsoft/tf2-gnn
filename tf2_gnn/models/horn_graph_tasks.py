@@ -203,6 +203,11 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             return self.compute_task_output(inputs, final_node_representations, training)
         elif self._params["label_type"] == "control_location_identify":
             return self.compute_task_output(inputs, final_node_representations, training)
+        elif self._params["label_type"] == "predicate_occurrence_in_SCG":
+            final_node_representations = self._gnn(gnn_input, training=training)
+            node_representations = tf.gather(params=final_node_representations * 1,
+                                             indices=inputs["label_node_indices"])
+            return self.compute_task_output(inputs, node_representations, training)
         elif self._params["label_type"]=="argument_identify_no_batchs":
             current_node_representations = tf.gather(params=final_node_representations * 1,
                                                      indices=inputs["current_node_index"])
