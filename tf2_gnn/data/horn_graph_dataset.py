@@ -34,7 +34,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         super().__init__(params, metadata=metadata)
         self._num_edge_types = None
         self._total_number_of_nodes=None
-        #self._node_number_per_edge_type = list()
+        self._node_number_per_edge_type = list()
         self._node_feature_shape: Optional[Tuple[int]] = None
         self._loaded_data: Dict[DataFold, List[GraphSample]] = {}
         self._argument_scores={}
@@ -95,10 +95,10 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         self._node_number_per_edge_type=raw_inputs._node_number_per_edge_type
 
         # print("raw_inputs.argument_scores",raw_inputs.argument_scores)
-        self._argument_scores[data_name]=raw_inputs.argument_scores
+        #self._argument_scores[data_name]=raw_inputs.argument_scores
         # print("raw_inputs.ranked_argument_scores",raw_inputs.ranked_argument_scores)
-        self._ranked_argument_scores[data_name] = raw_inputs.ranked_argument_scores
-        self._file_list[data_name] = raw_inputs.file_names
+        #self._ranked_argument_scores[data_name] = raw_inputs.ranked_argument_scores
+        #self._file_list[data_name] = raw_inputs.file_names
         self._label_list[data_name] = raw_inputs.labels
         return final_graphs
 

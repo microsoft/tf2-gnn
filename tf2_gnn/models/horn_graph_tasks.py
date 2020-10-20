@@ -19,12 +19,9 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
         for mlp_node in self._params["regression_hidden_layer_size"]:
             self._regression_layers.append(tf.keras.layers.Dense(
             units=mlp_node, activation=tf.nn.relu, use_bias=True))
-        # self._node_repr_to_regression_layer = tf.keras.layers.Dense(
-        #     units=self._params["regression_hidden_layer_size"][0], activation=tf.nn.relu, use_bias=True) #decide layer output shape
-        # self._regression_layer_1 = tf.keras.layers.Dense(
-        #     units=self._params["regression_hidden_layer_size"][1], activation=tf.nn.relu, use_bias=True)
-        self._node_repr_output_layer = tf.keras.layers.Dense(
-            units=1, use_bias=True)#we didn't normalize label so this should not be sigmoid
+
+
+        self._node_repr_output_layer = tf.keras.layers.Dense(units=1, use_bias=True)#we didn't normalize label so this should not be sigmoid
         self._node_to_graph_aggregation = None
 
     def build(self, input_shapes):
@@ -59,8 +56,6 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             self._node_repr_output_layer.build(
                 tf.TensorShape((None, self._params["regression_hidden_layer_size"][-1])) #decide layer input shape
             )
-
-
 
         super().build_horn_graph()#by pass graph_task_mode (GraphTaskModel)' build because it will build another gnn layer
         #tf.keras.Model.build([])
@@ -103,7 +98,6 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
         x=self._regression_layers[0](final_node_representations)
         for i in range(1,len(self._regression_layers)):
             x=self._regression_layers[i](x)
-        # argument_regression_1=self._regression_layer_1(argument_regression_hidden_layer_output)
         predicted_node_label = self._node_repr_output_layer(x)  # Shape [argument number, 1]
         return tf.squeeze(predicted_node_label, axis=-1) #Shape [predicted_node_label number,]
 
@@ -145,12 +139,12 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             output_dim=params["node_label_embedding_size"]
         )
         self._gnn = GNN(params) #RGCN,RGIN,RGAT,GGNN
-        self._argument_repr_to_regression_layer = tf.keras.layers.Dense(
-            units=self._params["regression_hidden_layer_size"][0], activation=tf.nn.relu, use_bias=True) #decide layer output shape
-        self._regression_layer_1 = tf.keras.layers.Dense(
-            units=self._params["regression_hidden_layer_size"][1], activation=tf.nn.relu, use_bias=True)
-        self._argument_output_layer = tf.keras.layers.Dense(activation=tf.nn.sigmoid,
-            units=1, use_bias=True)
+        self._regression_layers = []
+        for mlp_node in self._params["regression_hidden_layer_size"]:
+            self._regression_layers.append(tf.keras.layers.Dense(
+                units=mlp_node, activation=tf.nn.relu, use_bias=True))
+        self._node_repr_output_layer = tf.keras.layers.Dense(activation=tf.nn.sigmoid,
+            units=1, use_bias=True)  # we didn't normalize label so this should not be sigmoid
         self._node_to_graph_aggregation = None
 
     def build(self, input_shapes):
@@ -172,14 +166,20 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         )
 
         #build task-specific layer
-        with tf.name_scope("Argument_repr_to_regression_layer"):
-            self._argument_repr_to_regression_layer.build(tf.TensorShape((None, self._params["hidden_dim"]))) #decide layer input shape
-        with tf.name_scope("regression_layer_1"):
-            self._regression_layer_1.build(tf.TensorShape((None, self._params["regression_hidden_layer_size"][0])))
-        with tf.name_scope("Argument_regression_layer"):
-            self._argument_output_layer.build(
-                tf.TensorShape((None, self._params["regression_hidden_layer_size"][1])))#decide layer input shape
+        with tf.name_scope("node_repr_to_regression_layer"):
+            self._regression_layers[0].build(
+                tf.TensorShape((None, self._params["hidden_dim"])))  # decide layer input shape
 
+        for i, regression_layer in enumerate(self._regression_layers):
+            if i > 0:
+                with tf.name_scope("regression_layer_" + str(i)):
+                    regression_layer.build(tf.TensorShape((None, self._params["regression_hidden_layer_size"][i - 1])))
+        # with tf.name_scope("regression_layer_1"):
+        #     self._regression_layer_1.build(tf.TensorShape((None, self._params["regression_hidden_layer_size"][0])))
+        with tf.name_scope("last_regression_layer"):
+            self._node_repr_output_layer.build(
+                tf.TensorShape((None, self._params["regression_hidden_layer_size"][-1]))  # decide layer input shape
+            )
         super().build_horn_graph()#by pass graph_task_mode (GraphTaskModel)' build because it will build another gnn layer
         #tf.keras.Model.build([])
 
@@ -212,18 +212,16 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
     def compute_task_output(
         self,
         batch_features: Dict[str, tf.Tensor],
-        final_argument_representations: tf.Tensor,
+        final_node_representations: tf.Tensor,
         training: bool,
     ) -> Any:
         #call task specific layers
-        argument_regression_hidden_layer_output = self._argument_repr_to_regression_layer(
-            final_argument_representations)
-        argument_regression_1 = self._regression_layer_1(argument_regression_hidden_layer_output)
-        predicted_argument_score = self._argument_output_layer(
-            argument_regression_1
-        )  # Shape [argument number, 1]
+        x = self._regression_layers[0](final_node_representations)
+        for i in range(1, len(self._regression_layers)):
+            x = self._regression_layers[i](x)
+        predicted_node_label = self._node_repr_output_layer(x)  # Shape [argument number, 1]
 
-        return tf.squeeze(predicted_argument_score, axis=-1)
+        return tf.squeeze(predicted_node_label, axis=-1)
 
     def compute_task_metrics(
         self,

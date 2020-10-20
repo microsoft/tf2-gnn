@@ -242,6 +242,12 @@ class GraphDataset(Generic[GraphSampleType]):
                 batch_features[f"adjacency_list_{i}"] = np.concatenate(adjacency_list)
             else:
                 batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, 2), dtype=np.int32)
+        # for i, (adjacency_list, edge_num) in enumerate(
+        #         zip(raw_batch["adjacency_lists"], self._node_number_per_edge_type)):
+        #     if len(adjacency_list) > 0:
+        #         batch_features[f"adjacency_list_{i}"] = np.concatenate(adjacency_list)
+        #     else:
+        #         batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, edge_num), dtype=np.int32)
 
         return batch_features, batch_labels
 
