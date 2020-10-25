@@ -13,7 +13,7 @@ from tf2_gnn.cli_utils import get_train_cli_arg_parser, run_train_from_args
 def run():
     parser = get_train_cli_arg_parser()
     args, potential_hyperdrive_args = parser.parse_known_args()
-
+    #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     hyperdrive_hyperparameter_overrides = None
     if args.hyperdrive_arg_parse and len(potential_hyperdrive_args) % 2 == 0:
         # Allow parsing params specified as "--key value" as well as "key value"

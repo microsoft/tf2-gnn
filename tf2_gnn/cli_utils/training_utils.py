@@ -118,7 +118,8 @@ def train(
     def save_model_fun(model: GraphTaskModel):
         save_model(save_file, model, dataset)
 
-    best_valid_metric,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list=train_loop(
+    best_valid_metric,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list=\
+        train_loop(
         model,
         train_data,
         valid_data,
