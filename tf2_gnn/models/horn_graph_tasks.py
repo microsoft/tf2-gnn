@@ -20,8 +20,10 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             self._regression_layers.append(tf.keras.layers.Dense(
             units=mlp_node, activation=tf.nn.relu, use_bias=True))
 
-
-        self._node_repr_output_layer = tf.keras.layers.Dense(units=1, use_bias=True)#we didn't normalize label so this should not be sigmoid
+        if self._params["label_type"] == "argument_bound":
+            self._node_repr_output_layer = tf.keras.layers.Dense(units=2, use_bias=True)
+        else:
+            self._node_repr_output_layer = tf.keras.layers.Dense(units=1, use_bias=True)#we didn't normalize label so this should not be sigmoid
         self._node_to_graph_aggregation = None
 
     def build(self, input_shapes):
@@ -99,7 +101,10 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
         for i in range(1,len(self._regression_layers)):
             x=self._regression_layers[i](x)
         predicted_node_label = self._node_repr_output_layer(x)  # Shape [argument number, 1]
-        return tf.squeeze(predicted_node_label, axis=-1) #Shape [predicted_node_label number,]
+        if self._params["label_type"] == "argument_bound":
+            return predicted_node_label
+        else:
+            return tf.squeeze(predicted_node_label, axis=-1) #Shape [predicted_node_label number,]
 
     def compute_task_metrics(#todo:change to hinge loss or lasso
             self,
@@ -108,7 +113,7 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             batch_labels: Dict[str, tf.Tensor],
     ) -> Dict[str, tf.Tensor]:
         mse = tf.losses.mean_squared_error(batch_labels["node_labels"], task_output)
-        hinge_loss=tf.losses.hinge(batch_labels["node_labels"], task_output)
+        #hinge_loss=tf.losses.hinge(batch_labels["node_labels"], task_output)
         mae = tf.losses.mean_absolute_error(batch_labels["node_labels"], task_output)
         num_graphs = tf.cast(batch_features["num_graphs_in_batch"], tf.float32)
         return {
@@ -126,7 +131,11 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             batch_task_result["batch_absolute_error"] for batch_task_result in task_results
         )
         epoch_mae = total_absolute_error / total_num_graphs
-        return epoch_mae.numpy(), f"Mean Absolute Error = {epoch_mae.numpy():.3f}"
+        if self._params["label_type"] == "argument_bound":
+            #return epoch_mae.numpy(), "Mean Absolute Error = "+str(epoch_mae.numpy())
+            return epoch_mae.numpy(), f"Mean Absolute Error = {epoch_mae.numpy()}"
+        else:
+            return epoch_mae.numpy(), f"Mean Absolute Error = {epoch_mae.numpy():.3f}"
 
 class InvariantNodeIdentifyTask(GraphTaskModel):
 
@@ -203,14 +212,14 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             return self.compute_task_output(inputs, final_node_representations, training)
         elif self._params["label_type"] == "control_location_identify":
             return self.compute_task_output(inputs, final_node_representations, training)
-        elif self._params["label_type"] == "predicate_occurrence_in_SCG":
-            node_representations = tf.gather(params=final_node_representations * 1,
-                                             indices=inputs["label_node_indices"])
-            return self.compute_task_output(inputs, node_representations, training)
         elif self._params["label_type"]=="argument_identify_no_batchs":
             current_node_representations = tf.gather(params=final_node_representations * 1,
                                                      indices=inputs["current_node_index"])
             return self.compute_task_output(inputs, current_node_representations, training)
+        elif self._params["label_type"] == "predicate_occurrence_in_SCG" or self._params["label_type"] == "argument_lower_bound_existence" or self._params["argument_upper_bound_existence"] == "predicate_occurrence_in_SCG":
+            node_representations = tf.gather(params=final_node_representations * 1,
+                                             indices=inputs["label_node_indices"])
+            return self.compute_task_output(inputs, node_representations, training)
 
 
     def compute_task_output(

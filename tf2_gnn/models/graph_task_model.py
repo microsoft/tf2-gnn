@@ -389,10 +389,11 @@ class GraphTaskModel(tf.keras.Model):
                     batch_features["num_graphs_in_batch"]
                 )
                 steps_per_second = step / (time.time() - epoch_time_start)
+
                 print(
                     f"   Step: {step:4d}"
-                    f"  |  Epoch graph avg. loss = {epoch_graph_average_loss:.5f}"
-                    f"  |  Batch graph avg. loss = {batch_graph_average_loss:.5f}"
+                    f"  |  Epoch graph avg. loss = {epoch_graph_average_loss}"#:.5f
+                    f"  |  Batch graph avg. loss = {batch_graph_average_loss}"
                     f"  |  Steps per sec = {steps_per_second:.5f}",
                     end="\r"
                 )

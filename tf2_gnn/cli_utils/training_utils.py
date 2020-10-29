@@ -59,15 +59,16 @@ def train_loop(
             train_data, training=True, quiet=quiet
         )
         train_metric, train_metric_string = model.compute_epoch_metrics(train_results)
+
         log_fun(
-            f" Train:  {train_loss:.4f} loss | {train_metric_string} | {train_speed:.2f} graphs/s",
+            f" Train:  {train_loss} loss | {train_metric_string} | {train_speed:.2f} graphs/s", #train_loss:.4f
         )
         valid_loss, valid_speed, valid_results = model.run_one_epoch(
             valid_data, training=False, quiet=quiet
         )
         valid_metric, valid_metric_string = model.compute_epoch_metrics(valid_results)
         log_fun(
-            f" Valid:  {valid_loss:.4f} loss | {valid_metric_string} | {valid_speed:.2f} graphs/s",
+            f" Valid:  {valid_loss} loss | {valid_metric_string} | {valid_speed:.2f} graphs/s",#valid_loss:.4f
         )
         train_loss_list.append(train_loss)
         valid_loss_list.append(valid_loss)
@@ -81,9 +82,13 @@ def train_loop(
             aml_run.log("valid_speed", float(valid_speed))
 
         # Save if good enough.
+        if isinstance(valid_metric,np.ndarray):
+            valid_metric=sum(valid_metric)
+        if isinstance(best_valid_metric, np.ndarray):
+            best_valid_metric=sum(best_valid_metric)
         if valid_metric < best_valid_metric:
             log_fun(
-                f"  (Best epoch so far, target metric decreased to {valid_metric:.5f} from {best_valid_metric:.5f}.)",
+                f"  (Best epoch so far, target metric decreased to {valid_metric} from {best_valid_metric}.)",#valid_metric:.5f,best_valid_metric:.
             )
             save_model_fun(model)
             best_valid_metric = valid_metric

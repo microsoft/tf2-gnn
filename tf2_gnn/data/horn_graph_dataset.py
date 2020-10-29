@@ -17,17 +17,17 @@ class HornGraphSample(GraphSample):
             adjacency_lists: List[np.ndarray],
             node_features: np.ndarray,
             node_indices: np.ndarray,
-            node_label: np.ndarray,
-            node_argument: np.ndarray = [],
-            current_node_index: np.ndarray = [],
-            node_control_location: np.ndarray = []
+            node_label: np.ndarray,#np.ndarray,
+            # node_argument: np.ndarray = [],
+            # current_node_index: np.ndarray = [],
+            # node_control_location: np.ndarray = []
     ):
         super().__init__(adjacency_lists, [], node_features)
         self._node_label = node_label
         self._node_indices = node_indices
-        self._node_argument = node_argument
-        self._node_control_location = node_control_location
-        self._current_node_index = current_node_index
+        # self._node_argument = node_argument
+        # self._node_control_location = node_control_location
+        # self._current_node_index = current_node_index
 
     @property
     def node_label(self) -> np.ndarray:
@@ -43,9 +43,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         self._node_number_per_edge_type = list()
         self._node_feature_shape: Optional[Tuple[int]]
         self._loaded_data: Dict[DataFold, List[GraphSample]] = {}
-        self._argument_scores = {}
         self._label_list = {}
-        self._ranked_argument_scores = {}
         self._file_list = {}
         self._benchmark = params["benchmark"]
         self.label_type = params["label_type"]
@@ -147,13 +145,18 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
             batch_features_types[f"adjacency_list_{edge_type_idx}"] = tf.int32
             batch_features_shapes[f"adjacency_list_{edge_type_idx}"] = (None, edge_number)
 
-        return GraphBatchTFDataDescription(
-            batch_features_types=batch_features_types,
-            batch_features_shapes=batch_features_shapes,
-            batch_labels_types={**data_description.batch_labels_types, "node_labels": tf.float32},
-            batch_labels_shapes={**data_description.batch_labels_shapes, "node_labels": (None,)},
-
-        )
+        if self.label_type=="argument_bound":
+            return GraphBatchTFDataDescription(
+                batch_features_types=batch_features_types,
+                batch_features_shapes=batch_features_shapes,
+                batch_labels_types={**data_description.batch_labels_types, "node_labels": tf.float32},
+                batch_labels_shapes={**data_description.batch_labels_shapes, "node_labels": (None,2)})
+        else:
+            return GraphBatchTFDataDescription(
+                batch_features_types=batch_features_types,
+                batch_features_shapes=batch_features_shapes,
+                batch_labels_types={**data_description.batch_labels_types, "node_labels": tf.float32},
+                batch_labels_shapes={**data_description.batch_labels_shapes, "node_labels": (None,)},)
 
     def _graph_iterator(self, data_fold: DataFold) -> Iterator[HornGraphSample]:
         loaded_data = self._loaded_data[data_fold]
