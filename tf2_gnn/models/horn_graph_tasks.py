@@ -216,7 +216,7 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             current_node_representations = tf.gather(params=final_node_representations * 1,
                                                      indices=inputs["current_node_index"])
             return self.compute_task_output(inputs, current_node_representations, training)
-        elif self._params["label_type"] == "predicate_occurrence_in_SCG" or self._params["label_type"] == "argument_lower_bound_existence" or self._params["argument_upper_bound_existence"] == "predicate_occurrence_in_SCG":
+        elif self._params["label_type"] == "predicate_occurrence_in_SCG" or self._params["label_type"] == "argument_lower_bound_existence" or self._params["label_type"] == "argument_upper_bound_existence":
             node_representations = tf.gather(params=final_node_representations * 1,
                                              indices=inputs["label_node_indices"])
             return self.compute_task_output(inputs, node_representations, training)

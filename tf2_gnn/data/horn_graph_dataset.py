@@ -11,23 +11,16 @@ import scipy.stats as ss
 
 class HornGraphSample(GraphSample):
     """Data structure holding a single horn graph."""
-
     def __init__(
             self,
             adjacency_lists: List[np.ndarray],
             node_features: np.ndarray,
             node_indices: np.ndarray,
-            node_label: np.ndarray,#np.ndarray,
-            # node_argument: np.ndarray = [],
-            # current_node_index: np.ndarray = [],
-            # node_control_location: np.ndarray = []
+            node_label: np.ndarray,
     ):
         super().__init__(adjacency_lists, [], node_features)
         self._node_label = node_label
         self._node_indices = node_indices
-        # self._node_argument = node_argument
-        # self._node_control_location = node_control_location
-        # self._current_node_index = current_node_index
 
     @property
     def node_label(self) -> np.ndarray:
@@ -212,7 +205,6 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
 
         raw_batch["label_node_indices"].extend(graph_sample._node_indices + offset)
         raw_batch["node_labels"].extend(graph_sample._node_label)
-        # raw_batch["current_node_index"].extend(graph_sample._current_node_index)
 
     def _finalise_batch(self, raw_batch) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         batch_features: Dict[str, Any] = {}
@@ -234,7 +226,6 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
 
         # batch_features, batch_labels = super()._finalise_batch(raw_batch)
         batch_features["label_node_indices"] = raw_batch["label_node_indices"]
-        # batch_features["current_node_index"] = raw_batch["current_node_index"]
         return batch_features, batch_labels
 
 
@@ -251,7 +242,7 @@ def form_gnn_inputs(data_fold=["train", "valid", "test"], label="predicate_occur
     vocabulary_set, token_map = build_vocabulary(datafold=["train", "valid", "test"], path=path,json_type=json_type)
     gnn_input_fold = {}
     for df in data_fold:
-        print("read graph from json file:", df)
+        print("read graph from json file:", df," datafold")
         graphs_node_label_ids = []
         graphs_node_symbols = []
         graphs_argument_indices = []
@@ -271,9 +262,9 @@ def form_gnn_inputs(data_fold=["train", "valid", "test"], label="predicate_occur
             # read graph
             with open(fileGraph) as f:
                 loaded_graph = json.load(f)
-                # debug check all field if equal to empty
+                # if nodeIds field is empty, there is no node in this graph. skip this one
                 if len(loaded_graph["nodeIds"]) == 0:
-                    print("nodeIds==0", fileName)
+                    print("nodeIds==0"," skip ", fileName)
 
                 else:
                     file_name_list.append(fileGraph[:fileGraph.find(json_type)])
