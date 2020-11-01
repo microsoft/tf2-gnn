@@ -90,10 +90,10 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
 
         print("raw_inputs.label_size", raw_inputs.label_size)
         print("raw_inputs._total_number_of_nodes", raw_inputs._total_number_of_nodes)
-        self._total_number_of_nodes = raw_inputs._total_number_of_nodes
         print("raw_inputs._num_edge_types", raw_inputs._num_edge_types)
-        self._num_edge_types = raw_inputs._num_edge_types
         print("raw_inputs._node_number_per_edge_type", raw_inputs._node_number_per_edge_type)
+        self._num_edge_types = raw_inputs._num_edge_types
+        self._total_number_of_nodes = raw_inputs._total_number_of_nodes
         self._node_number_per_edge_type = raw_inputs._node_number_per_edge_type
         self._label_list[data_name] = raw_inputs.labels
         return final_graphs
@@ -227,15 +227,6 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         # batch_features, batch_labels = super()._finalise_batch(raw_batch)
         batch_features["label_node_indices"] = raw_batch["label_node_indices"]
         return batch_features, batch_labels
-
-
-def pickleRead(pickle_file_name, path=""):
-    file = path + '../pickleData/' + pickle_file_name + '.txt'
-    print('pickle read ' + file)
-    with open(file, "rb") as fp:
-        content = pickle.load(fp)
-    return content
-
 
 # form gnn inputs
 def form_gnn_inputs(data_fold=["train", "valid", "test"], label="predicate_occurrence_in_clauses", path="../", file_type=".smt2",json_type=".JSON"):
@@ -524,3 +515,11 @@ def get_batch_graph_sample_info(graphs_adjacency_lists, total_number_of_node, vo
     raw_data_graph.vocabulary_set = vocabulary_set
     raw_data_graph.token_map = token_map
     return raw_data_graph
+
+
+def pickleRead(pickle_file_name, path=""):
+    file = path + '../pickleData/' + pickle_file_name + '.txt'
+    print('pickle read ' + file)
+    with open(file, "rb") as fp:
+        content = pickle.load(fp)
+    return content

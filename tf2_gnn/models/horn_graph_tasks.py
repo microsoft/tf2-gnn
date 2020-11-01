@@ -52,8 +52,6 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             if i>0:
                 with tf.name_scope("regression_layer_"+str(i)):
                     regression_layer.build(tf.TensorShape((None, self._params["regression_hidden_layer_size"][i-1])))
-        # with tf.name_scope("regression_layer_1"):
-        #     self._regression_layer_1.build(tf.TensorShape((None, self._params["regression_hidden_layer_size"][0])))
         with tf.name_scope("last_regression_layer"):
             self._node_repr_output_layer.build(
                 tf.TensorShape((None, self._params["regression_hidden_layer_size"][-1])) #decide layer input shape
@@ -183,8 +181,6 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             if i > 0:
                 with tf.name_scope("regression_layer_" + str(i)):
                     regression_layer.build(tf.TensorShape((None, self._params["regression_hidden_layer_size"][i - 1])))
-        # with tf.name_scope("regression_layer_1"):
-        #     self._regression_layer_1.build(tf.TensorShape((None, self._params["regression_hidden_layer_size"][0])))
         with tf.name_scope("last_regression_layer"):
             self._node_repr_output_layer.build(
                 tf.TensorShape((None, self._params["regression_hidden_layer_size"][-1]))  # decide layer input shape
