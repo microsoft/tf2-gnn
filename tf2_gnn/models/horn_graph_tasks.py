@@ -4,6 +4,7 @@ import tensorflow as tf
 from tf2_gnn.data import GraphDataset
 from tf2_gnn.models import GraphTaskModel
 from tf2_gnn import GNNInput, GNN
+import math
 
 class InvariantArgumentSelectionTask(GraphTaskModel):
     def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
@@ -111,6 +112,9 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             batch_labels: Dict[str, tf.Tensor],
     ) -> Dict[str, tf.Tensor]:
         mse = tf.losses.mean_squared_error(batch_labels["node_labels"], task_output)
+        if math.isnan(mse):
+            print("node_labels",batch_labels["node_labels"])
+            print("task_output",task_output)
         #hinge_loss=tf.losses.hinge(batch_labels["node_labels"], task_output)
         mae = tf.losses.mean_absolute_error(batch_labels["node_labels"], task_output)
         num_graphs = tf.cast(batch_features["num_graphs_in_batch"], tf.float32)
@@ -243,6 +247,15 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
                 y_true=batch_labels["node_labels"], y_pred=task_output, from_logits=False
             )
         )
+
+        if math.isnan(ce):
+            print("batch_features",len(batch_features))
+            print("batch_features", batch_features)
+            print("label_node_indices",batch_features["label_node_indices"])
+            print("labels", batch_labels["node_labels"])
+            print("task_output", task_output)
+            print("loss ce", ce)
+
         num_correct = tf.reduce_sum(
             tf.cast(
                 tf.math.equal(batch_labels["node_labels"], tf.math.round(task_output)), tf.int32

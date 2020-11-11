@@ -96,6 +96,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         self._total_number_of_nodes = raw_inputs._total_number_of_nodes
         self._node_number_per_edge_type = raw_inputs._node_number_per_edge_type
         self._label_list[data_name] = raw_inputs.labels
+        self._file_list[data_name] = raw_inputs.file_names
         return final_graphs
 
     def load_data_from_list(self):
@@ -208,6 +209,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
 
     def _finalise_batch(self, raw_batch) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         batch_features: Dict[str, Any] = {}
+        #if two continuous graphs' nodes > max_nodes_per_batch, then raw_batch["node_labels"] will be empty and finally pose "train_loss=nan"
         batch_labels: Dict[str, Any] = {"node_labels": raw_batch["node_labels"]}
         batch_features["node_features"] = np.array(raw_batch["node_features"])
         # print("raw_batch node_to_graph_map len",len(raw_batch["node_to_graph_map"]))

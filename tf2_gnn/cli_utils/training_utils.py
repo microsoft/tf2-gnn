@@ -53,6 +53,15 @@ def train_loop(
     best_valid_epoch = 0
     train_time_start = time.time()
 
+    #counter parameters
+    total = 0
+    for v in model.trainable_weights:
+        dims = v.get_shape().as_list()
+        num = int(np.prod(dims))
+        total += num
+        print('  %s \t\t Num: %d \t\t Shape %s ' % (v.name, num, dims))
+    print('Total params: {:,}'.format(total))
+
     for epoch in range(1, max_epochs + 1):
         log_fun(f"== Epoch {epoch}")
         train_loss, train_speed, train_results = model.run_one_epoch(
