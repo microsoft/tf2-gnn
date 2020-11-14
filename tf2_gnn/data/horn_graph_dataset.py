@@ -40,6 +40,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         self._file_list = {}
         self._benchmark = params["benchmark"]
         self.label_type = params["label_type"]
+        self._graph_type = params["graph_type"]
         self._node_vocab_size = 0
         self._read_from_pickle=False
         self._path=""
@@ -72,7 +73,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         print("data_fold", data_name)
         if self._read_from_pickle==True:
             print("read GNNInputs from pickle file")
-            pickle_file_name = self.label_type + "-" + self._benchmark + "-gnnInput_" + data_name + "_data"
+            pickle_file_name = self.label_type +"-"+self._graph_type+ "-" + self._benchmark + "-gnnInput_" + data_name + "_data"
             print(pickle_file_name)
             raw_inputs = pickleRead(pickle_file_name)
         else:
