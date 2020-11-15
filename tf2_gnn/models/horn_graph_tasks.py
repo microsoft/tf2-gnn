@@ -208,15 +208,13 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             adjacency_lists=adjacency_lists
         )
         final_node_representations = self._gnn(gnn_input, training=training)
-        if self._params["label_type"]=="argument_identify":
-            return self.compute_task_output(inputs, final_node_representations, training)
-        elif self._params["label_type"] == "control_location_identify":
+        if self._params["label_type"]=="argument_identify" or self._params["label_type"]=="control_location_identify":
             return self.compute_task_output(inputs, final_node_representations, training)
         elif self._params["label_type"]=="argument_identify_no_batchs":
             current_node_representations = tf.gather(params=final_node_representations * 1,
                                                      indices=inputs["current_node_index"])
             return self.compute_task_output(inputs, current_node_representations, training)
-        elif self._params["label_type"] == "predicate_occurrence_in_SCG" or self._params["label_type"] == "argument_lower_bound_existence" or self._params["label_type"] == "argument_upper_bound_existence" or self._params["label_type"] == "argument_occurrence_binary" or self._params["label_type"] == "template_relevance":
+        elif self._params["label_type"] in self._params["gathered_nodes_binary_classification_task"]:
             node_representations = tf.gather(params=final_node_representations * 1,
                                              indices=inputs["label_node_indices"])
             return self.compute_task_output(inputs, node_representations, training)
