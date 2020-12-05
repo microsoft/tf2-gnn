@@ -143,13 +143,11 @@ class MessagePassing(tf.keras.layers.Layer):
         counter = 0
         for edge_type_idx, adjacency_list_for_edge_type in enumerate(adjacency_lists):
             edge_arity = adjacency_list_for_edge_type.shape[1]
-
             # Compute edge embeddings update function inputs by concatening all connected nodes:
             edges_node_representations = []
             for endpoint_idx in range(edge_arity):
                 node_idxs = adjacency_list_for_edge_type[:, endpoint_idx]
                 edges_node_representations.append(tf.gather(params=node_embeddings, indices=node_idxs))
-
             raw_edge_representations = tf.concat(edges_node_representations, axis=-1)
             # Now actually compute one result per involved node, using a separate function for
             # each hyperedge endpoint:
