@@ -30,7 +30,7 @@ and unzip it into a local directory (e.g., `data/ppi`).
 Then, you can use the convenience utility `tf2_gnn_train` (see `--help` for a description
 of options) to train a Relational Graph Convoluational Network model as follows:
 ```
-$ tf2_gnn_train RGCN PPI data/ppi/
+$ tf2_gnn_train RGCN PPI --max-epochs 10 data/ppi/
 Setting random seed 0.
 Trying to load task/model-specific default parameters from /dpuhome/files/users/mabrocks/Projects/TF2-GNN/tf2_gnn/cli_utils/default_hypers/PPI_RGCN.json ... File found.
  Dataset default parameters: {'max_nodes_per_batch': 10000, 'add_self_loop_edges': True, 'tie_fwd_bkwd_edges': False}
