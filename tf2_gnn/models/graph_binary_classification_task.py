@@ -90,7 +90,7 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
             balanced_acc=metrics.balanced_accuracy_score(
                 y_true=labels, y_pred=rounded_preds
             ),
-            precicision=metrics.precision_score(y_true=labels, y_pred=rounded_preds),
+            precision=metrics.precision_score(y_true=labels, y_pred=rounded_preds),
             recall=metrics.recall_score(y_true=labels, y_pred=rounded_preds),
             f1_score=metrics.f1_score(y_true=labels, y_pred=rounded_preds),
             roc_auc=roc_auc,
