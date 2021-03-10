@@ -80,15 +80,20 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
             labels.append(batch_labels["target_value"])
         labels = tf.concat(labels, axis=0).numpy()
 
+        try:
+            roc_auc = metrics.roc_auc_score(y_true=labels, y_score=predictions)
+        except:
+            roc_auc = np.nan
+
         metrics = dict(
             acc=metrics.accuracy_score(y_true=labels, y_pred=rounded_preds),
             balanced_acc=metrics.balanced_accuracy_score(
                 y_true=labels, y_pred=rounded_preds
             ),
-            precicision=metrics.precision_score(y_true=labels, y_pred=rounded_preds),
+            precision=metrics.precision_score(y_true=labels, y_pred=rounded_preds),
             recall=metrics.recall_score(y_true=labels, y_pred=rounded_preds),
             f1_score=metrics.f1_score(y_true=labels, y_pred=rounded_preds),
-            roc_auc=metrics.roc_auc_score(y_true=labels, y_score=predictions),
+            roc_auc=roc_auc,
         )
 
         return metrics
