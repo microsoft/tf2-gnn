@@ -18,9 +18,6 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
-        super().__init__(params, dataset=dataset, name=name)
-
     def compute_task_output(
         self,
         batch_features: Dict[str, tf.Tensor],

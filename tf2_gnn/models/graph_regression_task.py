@@ -30,8 +30,8 @@ class GraphRegressionTask(GraphTaskModel):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
-        super().__init__(params, dataset=dataset, name=name)
+    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None, **kwargs):
+        super().__init__(params, dataset=dataset, name=name, **kwargs)
         self._node_to_graph_aggregation = None
 
         # Construct sublayers:
