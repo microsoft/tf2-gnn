@@ -31,8 +31,8 @@ class NodeMulticlassTask(GraphTaskModel):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
-        super().__init__(params, dataset=dataset, name=name)
+    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None, **kwargs):
+        super().__init__(params, dataset=dataset, name=name, **kwargs)
         if not hasattr(dataset, "num_node_target_labels"):
             raise ValueError(f"Provided dataset of type {type(dataset)} does not provide num_node_target_labels information.")
         self._num_labels = dataset.num_node_target_labels
