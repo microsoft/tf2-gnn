@@ -79,8 +79,12 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
 
         try:
             roc_auc = metrics.roc_auc_score(y_true=labels, y_score=predictions)
+            average_precision = metrics.average_precision_score(
+                y_true=labels, y_score=predictions
+            )
         except:
             roc_auc = np.nan
+            average_precision = np.nan
 
         metrics = dict(
             acc=metrics.accuracy_score(y_true=labels, y_pred=rounded_preds),
@@ -91,6 +95,7 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
             recall=metrics.recall_score(y_true=labels, y_pred=rounded_preds),
             f1_score=metrics.f1_score(y_true=labels, y_pred=rounded_preds),
             roc_auc=roc_auc,
+            average_precision=avaerage_precision,
         )
 
         return metrics
