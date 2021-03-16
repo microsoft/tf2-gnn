@@ -95,7 +95,7 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
             recall=metrics.recall_score(y_true=labels, y_pred=rounded_preds),
             f1_score=metrics.f1_score(y_true=labels, y_pred=rounded_preds),
             roc_auc=roc_auc,
-            average_precision=avaerage_precision,
+            average_precision=average_precision,
         )
 
         return metrics
