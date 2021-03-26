@@ -18,6 +18,7 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
         self._gnn = GNN(params) #RGCN,RGIN,RGAT,GGNN
         self._regression_layers=[]
         for mlp_node in self._params["regression_hidden_layer_size"]:
+            #todo: add regularizers?
             self._regression_layers.append(tf.keras.layers.Dense(
             units=mlp_node, activation=tf.nn.relu, use_bias=True))
 
@@ -84,8 +85,10 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             adjacency_lists=adjacency_lists
         )
         final_node_representations = self._gnn(gnn_input, training=training)
+        #print("self._gnn.weights",self._gnn.weights)
+        #print("final_node_representations",final_node_representations)
         node_representations=tf.gather(params=final_node_representations*1,indices=inputs["label_node_indices"])
-        #print("argument_representations",argument_representations)
+        #print("node_representations",node_representations)
         return self.compute_task_output(inputs, node_representations, training)
 
     def compute_task_output(
@@ -105,7 +108,7 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
         else:
             return tf.squeeze(predicted_node_label, axis=-1) #Shape [predicted_node_label number,]
 
-    def compute_task_metrics(#todo:change to hinge loss or lasso
+    def compute_task_metrics(
             self,
             batch_features: Dict[str, tf.Tensor],
             task_output: Any,
@@ -240,11 +243,10 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         task_output: Any,
         batch_labels: Dict[str, tf.Tensor],
     ) -> Dict[str, tf.Tensor]:
-        ce = tf.reduce_mean(
-            tf.keras.losses.binary_crossentropy(
-                y_true=batch_labels["node_labels"], y_pred=task_output, from_logits=False
-            )
-        )
+        #binary_crossentropy_value=tf.keras.losses.binary_crossentropy(y_true=batch_labels["node_labels"], y_pred=task_output,from_logits=True)
+        class_weighted_binary_crossentropy_value = \
+            self.get_weighted_binary_crossentropy(batch_labels["node_labels"],task_output,from_logits=True)
+        ce = tf.reduce_mean(class_weighted_binary_crossentropy_value)
 
         if math.isnan(ce):
             print("batch_features",len(batch_features))
@@ -281,6 +283,23 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         )
         epoch_acc = tf.cast(total_num_correct, tf.float32) / total_num_nodes
         return -epoch_acc.numpy(), f"Accuracy = {epoch_acc.numpy():.3f}"
+
+    def get_weighted_binary_crossentropy(self, true_y, predicted_y,from_logits=True):
+        #ce = 0
+        ce_raw=0
+        for y,y_hat in zip(true_y,predicted_y):
+            ce_raw = ce_raw + (-y * np.log(self.sigmoid(y_hat)) * self._params["class_weight"]["weight_for_1"]) - (1 - y) * np.log(
+                1 - self.sigmoid(y_hat)) * self._params["class_weight"]["weight_for_0"]
+            # if (y == 1):
+            #     ce = ce + tf.keras.losses.binary_crossentropy([y], [y_hat],from_logits=from_logits) * self._params["class_weight"]["weight_for_1"]
+            # if (y == 0):
+            #     ce = ce + tf.keras.losses.binary_crossentropy([y], [y_hat],from_logits=from_logits) * self._params["class_weight"]["weight_for_0"]
+        return ce_raw/len(true_y)#ce / len(true_y)
+
+    def sigmoid(self,x):
+        return 1 / (1 + np.exp(-x))
+
+
 
 
 

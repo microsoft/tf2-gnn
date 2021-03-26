@@ -45,6 +45,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         #self._read_from_pickle=False
         self._path=""
         self._json_type=".JSON"
+        self._class_weight={}
 
     def load_data(self,folds_to_load: Optional[Set[DataFold]] = None) -> None:
         '''been run automatically when create the object of this class'''
@@ -95,6 +96,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         self._node_number_per_edge_type = raw_inputs._node_number_per_edge_type
         self._label_list[data_name] = raw_inputs.labels
         self._file_list[data_name] = raw_inputs.file_names
+        self._class_weight=raw_inputs.class_weight
         return final_graphs
 
     def load_data_from_list(self):
