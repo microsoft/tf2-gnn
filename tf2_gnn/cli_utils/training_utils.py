@@ -257,7 +257,7 @@ def get_train_cli_arg_parser(default_model_type: Optional[str] = None):
         "--save-dir",
         dest="save_dir",
         type=str,
-        default="trained_model",
+        default="outputs",
         help="Path in which to store the trained model and log.",
     )
     parser.add_argument(
