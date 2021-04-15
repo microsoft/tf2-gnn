@@ -45,7 +45,7 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         #self._read_from_pickle=False
         self._path=""
         self._json_type=".JSON"
-        self._class_weight={}
+        self._class_weight_fold={}
 
     def load_data(self,folds_to_load: Optional[Set[DataFold]] = None) -> None:
         '''been run automatically when create the object of this class'''
@@ -87,16 +87,20 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
         # if self._node_vocab_size<max(node_num_list):
         #     self._node_vocab_size=max(node_num_list)
 
-        print("raw_inputs.label_size", raw_inputs.label_size)
-        print("raw_inputs._total_number_of_nodes", raw_inputs._total_number_of_nodes)
-        print("raw_inputs._num_edge_types", raw_inputs._num_edge_types)
-        print("raw_inputs._node_number_per_edge_type", raw_inputs._node_number_per_edge_type)
         self._num_edge_types = raw_inputs._num_edge_types
         self._total_number_of_nodes = raw_inputs._total_number_of_nodes
         self._node_number_per_edge_type = raw_inputs._node_number_per_edge_type
         self._label_list[data_name] = raw_inputs.labels
         self._file_list[data_name] = raw_inputs.file_names
-        self._class_weight=raw_inputs.class_weight
+        self._class_weight_fold[data_name]= raw_inputs.class_weight[data_name]
+
+        print("raw_inputs.label_size", raw_inputs.label_size)
+        print("raw_inputs._total_number_of_nodes", raw_inputs._total_number_of_nodes)
+        print("raw_inputs._num_edge_types", raw_inputs._num_edge_types)
+        print("raw_inputs._node_number_per_edge_type", raw_inputs._node_number_per_edge_type)
+        print("_node_vocab_size",self._node_vocab_size )
+        print("raw_inputs.class_weight", self._class_weight_fold)
+
         return final_graphs
 
     def load_data_from_list(self):

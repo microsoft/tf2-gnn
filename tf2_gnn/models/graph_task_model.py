@@ -347,7 +347,6 @@ class GraphTaskModel(tf.keras.Model):
     ):
         batch_features = self._unpack_features(batch_features_tuple)
         batch_labels = self._unpack_labels(batch_labels_tuple)
-
         with tf.GradientTape() as tape:
             task_output = self(batch_features, training=training)
             task_metrics = self.compute_task_metrics(
@@ -375,6 +374,12 @@ class GraphTaskModel(tf.keras.Model):
         total_num_graphs = 0
         task_results = []
         total_loss = tf.constant(0, dtype=tf.float32)
+        # description: set class weight here
+        if training==True:
+            self._params["class_weight"] = self._params["class_weight_fold"]["train"]
+        else:
+            self._params["class_weight"]={"weight_for_1":1,"weight_for_0":1}
+
         for step, (batch_features, batch_labels) in enumerate(dataset):
             task_metrics = self._run_step(batch_features, batch_labels, training)
             total_loss += task_metrics["loss"]

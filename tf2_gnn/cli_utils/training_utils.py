@@ -59,7 +59,7 @@ def train_loop(
         dims = v.get_shape().as_list()
         num = int(np.prod(dims))
         total += num
-        print('  %s \t\t Num: %d \t\t Shape %s ' % (v.name, num, dims))
+        #print('  %s \t\t Num: %d \t\t Shape %s ' % (v.name, num, dims))
     print('Total params: {:,}'.format(total))
 
     for epoch in range(1, max_epochs + 1):
