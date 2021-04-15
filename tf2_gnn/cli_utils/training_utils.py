@@ -108,7 +108,9 @@ def train_loop(
                 f"Stopping training after {patience} epochs without "
                 f"improvement on validation metric.",
             )
-            log_fun(f"Training took {total_time}s. Best validation metric: {best_valid_metric}",)
+            log_fun(
+                f"Training took {total_time}s. Best validation metric: {best_valid_metric}",
+            )
             break
     return best_valid_metric,train_loss_list,valid_loss_list,best_valid_epoch,train_metric_list,valid_metric_list
 
@@ -163,7 +165,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
     os.makedirs(args.save_dir, exist_ok=True)
     run_id = make_run_id(args.model, args.task, args.run_name)
     log_file = os.path.join(args.save_dir, f"{run_id}.log")
-    
+
     def log(msg):
         log_line(log_file, msg)
 
@@ -183,6 +185,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
         hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
         folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
         load_weights_only=args.load_weights_only,
+        disable_tf_function_build=args.disable_tf_func,
     )
 
     log(f"Dataset parameters: {json.dumps(unwrap_tf_tracked_data(dataset._params))}")
@@ -234,7 +237,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
             pass  # ignore if there are no fancier metrics
 
 
-def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
+def get_train_cli_arg_parser(default_model_type: Optional[str] = None):
     """
     Get an argparse argument parser object with common options for training
     GNN-based models.
@@ -277,7 +280,7 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         "--save-dir",
         dest="save_dir",
         type=str,
-        default="trained_model",
+        default="outputs",
         help="Path in which to store the trained model and log.",
     )
     parser.add_argument(
@@ -307,10 +310,17 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         help="Maximal number of epochs to continue training without improvement.",
     )
     parser.add_argument(
-        "--seed", dest="random_seed", type=int, default=0, help="Random seed to use.",
+        "--seed",
+        dest="random_seed",
+        type=int,
+        default=0,
+        help="Random seed to use.",
     )
     parser.add_argument(
-        "--run-name", dest="run_name", type=str, help="A human-readable name for this run.",
+        "--run-name",
+        dest="run_name",
+        type=str,
+        help="A human-readable name for this run.",
     )
     parser.add_argument(
         "--azure-info",
@@ -331,7 +341,16 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         help="Optional to only load the weights of the model rather than class and dataset for further training (used in fine-tuning on pretrained network). Should be model stored in earlier run.",
     )
     parser.add_argument(
-        "--quiet", dest="quiet", action="store_true", help="Generate less output during training.",
+        "--disable-tf-func",
+        dest="disable_tf_func",
+        action="store_true",
+        help="Optional to disable the building of tf function graphs and run in eager mode.",
+    )
+    parser.add_argument(
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        help="Generate less output during training.",
     )
     parser.add_argument(
         "--run-test",

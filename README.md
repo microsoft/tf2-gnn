@@ -25,12 +25,12 @@ We are [hiring](https://www.microsoft.com/en-us/research/theme/ada/#!opportuniti
 To test if all components are set up correctly, you can run a simple experiment on the
 protein-protein interaction (PPI) task first described by 
 [Zitnik & Leskovec, 2017](#zitnik-leskovec-2017).
-You can download the data for this task from https://s3.us-east-2.amazonaws.com/dgl.ai/dataset/ppi.zip
+You can download the data for this task from https://data.dgl.ai/dataset/ppi.zip
 and unzip it into a local directory (e.g., `data/ppi`).
 Then, you can use the convenience utility `tf2_gnn_train` (see `--help` for a description
 of options) to train a Relational Graph Convoluational Network model as follows:
 ```
-$ tf2_gnn_train RGCN PPI data/ppi/
+$ tf2_gnn_train RGCN PPI --max-epochs 10 data/ppi/
 Setting random seed 0.
 Trying to load task/model-specific default parameters from /dpuhome/files/users/mabrocks/Projects/TF2-GNN/tf2_gnn/cli_utils/default_hypers/PPI_RGCN.json ... File found.
  Dataset default parameters: {'max_nodes_per_batch': 10000, 'add_self_loop_edges': True, 'tie_fwd_bkwd_edges': False}

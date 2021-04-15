@@ -40,8 +40,8 @@ class QM9RegressionTask(GraphTaskModel):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
-        super().__init__(params, dataset=dataset, name=name)
+    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None, **kwargs):
+        super().__init__(params, dataset=dataset, name=name, **kwargs)
         assert isinstance(dataset, QM9Dataset)
 
         self._task_id = int(dataset._params["task_id"])

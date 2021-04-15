@@ -165,7 +165,9 @@ def load_dataset_for_prediction(trained_model_file: str):
     )
 
 
-def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
+def load_model_for_prediction(
+    trained_model_file: str, dataset: GraphDataset, disable_tf_function_build: bool = False
+):
     with open(get_model_file_path(trained_model_file, "pkl"), "rb") as in_file:
         data_to_load = pickle.load(in_file)
     model_class: Type[GraphTaskModel] = data_to_load["model_class"]
@@ -173,7 +175,11 @@ def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
     # Clear the Keras session so that unique naming does not mess up weight loading.
     tf.keras.backend.clear_session()
 
-    model = model_class(params=data_to_load.get("model_params", {}), dataset=dataset,)
+    model = model_class(
+        params=data_to_load.get("model_params", {}),
+        dataset=dataset,
+        disable_tf_function_build=disable_tf_function_build,
+    )
 
     data_description = dataset.get_batch_tf_data_description()
     model.build(data_description.batch_features_shapes)
@@ -193,11 +199,10 @@ def get_model(
     loaded_model_hyperparameters: Dict[str, Any],
     cli_model_hyperparameter_overrides: Dict[str, Any],
     hyperdrive_hyperparameter_overrides: Dict[str, str],
+    disable_tf_function_build: bool = False,
 ) -> GraphTaskModel:
     if not model_cls:
-        model_cls, model_default_hyperparameter_overrides = task_name_to_model_class(
-            task_name
-        )
+        model_cls, model_default_hyperparameter_overrides = task_name_to_model_class(task_name)
         model_params = model_cls.get_default_hyperparameters(msg_passing_implementation)
         print(f" Model default parameters: {model_params}")
         model_params.update(model_default_hyperparameter_overrides)
@@ -214,9 +219,7 @@ def get_model(
         model_params = loaded_model_hyperparameters
     model_params.update(cli_model_hyperparameter_overrides)
     if len(cli_model_hyperparameter_overrides):
-        print(
-            f"  Model parameters overridden from CLI: {cli_model_hyperparameter_overrides}"
-        )
+        print(f"  Model parameters overridden from CLI: {cli_model_hyperparameter_overrides}")
     if len(hyperdrive_hyperparameter_overrides) > 0:
         override_model_params_with_hyperdrive_params(
             model_params, hyperdrive_hyperparameter_overrides
@@ -224,7 +227,9 @@ def get_model(
         print(
             f"  Model parameters overridden for Hyperdrive: {hyperdrive_hyperparameter_overrides}"
         )
-    return model_cls(model_params, dataset=dataset)
+    return model_cls(
+        model_params, dataset=dataset, disable_tf_function_build=disable_tf_function_build
+    )
 
 
 # TODO: A better solution to 'loading weights only without model and class' is required.
@@ -240,6 +245,7 @@ def get_model_and_dataset(
     hyperdrive_hyperparameter_overrides: Dict[str, str] = {},
     folds_to_load: Optional[Set[DataFold]] = None,
     load_weights_only: bool = False,
+    disable_tf_function_build: bool = False,
 ):
     if trained_model_file and not os.path.exists(trained_model_file):
         print(f"W: Asked to load from {trained_model_file}, which does not exist. Ignoring.")
@@ -305,10 +311,9 @@ def get_model_and_dataset(
             "model_params", {}
         ),
         loaded_model_hyperparameters=data_to_load.get("model_params", {}),
-        cli_model_hyperparameter_overrides=json.loads(
-            cli_model_hyperparameter_overrides or "{}"
-        ),
+        cli_model_hyperparameter_overrides=json.loads(cli_model_hyperparameter_overrides or "{}"),
         hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides or {},
+        disable_tf_function_build=disable_tf_function_build,
     )
 
     data_description = dataset.get_batch_tf_data_description()
