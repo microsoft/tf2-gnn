@@ -7,8 +7,9 @@ from tf2_gnn import GNNInput, GNN
 import math
 
 class InvariantArgumentSelectionTask(GraphTaskModel):
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
+    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None,disable_tf_function_build: bool = False):
         super().__init__(params, dataset=dataset, name=name)
+        self._disable_tf_function_build=disable_tf_function_build
         self._params = params
         self._num_edge_types = dataset.num_edge_types
         self._embedding_layer = tf.keras.layers.Embedding(
@@ -144,7 +145,7 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
 
 class InvariantNodeIdentifyTask(GraphTaskModel):
 
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
+    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None,disable_tf_function_build: bool = False):
         super().__init__(params, dataset=dataset, name=name)
         self._params = params
         self._num_edge_types = dataset.num_edge_types
@@ -159,6 +160,7 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
                 units=mlp_node, activation=tf.nn.relu, use_bias=True))
         self._node_repr_output_layer = tf.keras.layers.Dense(activation=tf.nn.sigmoid,units=1, use_bias=True)  # sigmoid?
         self._node_to_graph_aggregation = None
+        self._disable_tf_function_build=disable_tf_function_build
 
     def build(self, input_shapes):
         # print("--build--")
