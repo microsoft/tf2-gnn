@@ -108,9 +108,8 @@ class MessagePassing(tf.keras.layers.Layer):
             with tf.name_scope(f"edge_type_{i}"):
                 for endpoint_idx in range(edge_arity):
                     with tf.name_scope(f"edge_arity_{endpoint_idx}"):
-                        mlp = MLP(out_size=self._hidden_dim, hidden_layers=self._num_edge_MLP_hidden_layers)
-                        # mlp=tf.keras.layers.Dense(units=self._hidden_dim,use_bias=True,activation=tf.nn.relu)
-                        # mlp.build(edge_layer_input_size)
+                        mlp = MLP(out_size=self._hidden_dim, hidden_layers=self._num_edge_MLP_hidden_layers,activation_fun=tf.nn.relu)
+                        #mlp=tf.keras.layers.Dense(units=self._hidden_dim,use_bias=True,activation=tf.nn.relu,)
                         self._hyperedge_type_mlps.append(mlp)
                         self._hyperedge_type_mlps[-1].build(edge_layer_input_size)
 
@@ -154,23 +153,21 @@ class MessagePassing(tf.keras.layers.Layer):
             for endpoint_idx in range(edge_arity):
                 target_state_ids = adjacency_list_for_edge_type[:, endpoint_idx]
                 messages.append(
-                    self._hyperedge_type_mlps[counter](
-                        raw_edge_representations, training
-                    )
+                    self._hyperedge_type_mlps[counter](raw_edge_representations, training)
+                    #self._hyperedge_type_mlps[counter](raw_edge_representations) #if use Dense layer
                 )
                 messages_targets.append(target_state_ids)
                 counter = counter + 1
 
         messages = tf.concat(messages, axis=0)  # Shape [M, H]
         messages_targets = tf.concat(messages_targets, axis=0)  # Shape [M]
-
         # Node embedding
         aggregated_messages = tf.math.unsorted_segment_sum(
             data=messages,
             segment_ids=messages_targets,
             num_segments=num_nodes
         )
-
+        aggregated_messages = self._my_tf_round(aggregated_messages,1)
         return tf.nn.relu(aggregated_messages)
 
 
@@ -192,6 +189,10 @@ class MessagePassing(tf.keras.layers.Layer):
         # )  # Shape [V, H]
         #
         # return new_node_states
+
+    def _my_tf_round(self,x, decimals=0):
+        multiplier = tf.constant(10 ** decimals, dtype=x.dtype)
+        return tf.cast(tf.cast(tf.round(x * multiplier),tf.int32),tf.float32) / multiplier
 
     def _compute_new_node_embeddings(
         self,

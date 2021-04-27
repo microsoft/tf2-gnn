@@ -1,8 +1,6 @@
 """GNN Encoder class."""
 from typing import Any, Dict, NamedTuple, List, Tuple, Optional
-
 import tensorflow as tf
-
 from tf2_gnn.utils.param_helpers import get_activation_function
 from .message_passing import (
     MessagePassing,
@@ -170,8 +168,8 @@ class GNN(tf.keras.layers.Layer):
                             self._dense_layers[str(layer_idx)].build(embedded_shape)
 
                     if (
-                        layer_idx
-                        and layer_idx % self._global_exchange_every_num_layers == 0
+                            layer_idx
+                            and layer_idx % self._global_exchange_every_num_layers == 0
                     ):
                         with tf.name_scope(f"Global_Exchange"):
                             if self._global_exchange_mode.lower() == "mean":
@@ -223,9 +221,9 @@ class GNN(tf.keras.layers.Layer):
                 adjacency_lists=tuple(
                     # tf.TensorSpec(shape=(None, 2), dtype=tf.int32)
                     # for _ in range(len(adjacency_list_shapes))
-                    tf.TensorSpec(shape=(None, edges[1]), dtype = tf.int32)
-                    for edges in  adjacency_list_shapes
-                    #for _, edges in zip(range(len(adjacency_list_shapes)), adjacency_list_shapes)
+                    tf.TensorSpec(shape=(None, edges[1]), dtype=tf.int32)
+                    for edges in adjacency_list_shapes
+                    # for _, edges in zip(range(len(adjacency_list_shapes)), adjacency_list_shapes)
                 ),
                 node_to_graph_map=tf.TensorSpec(shape=(None,), dtype=tf.int32),
                 num_graphs=tf.TensorSpec(shape=(), dtype=tf.int32),
@@ -280,7 +278,6 @@ class GNN(tf.keras.layers.Layer):
         initial_node_features: tf.Tensor = inputs.node_features
         adjacency_lists = inputs.adjacency_lists
         cur_node_representations = self._initial_projection_layer(initial_node_features)
-
         # Layer loop.
         last_node_representations = cur_node_representations
         all_node_representations = [cur_node_representations]
@@ -305,8 +302,8 @@ class GNN(tf.keras.layers.Layer):
                 ),
                 training=training,
             )
-            all_node_representations.append(cur_node_representations)
 
+            all_node_representations.append(cur_node_representations)
             if layer_idx and layer_idx % self._global_exchange_every_num_layers == 0:
                 cur_node_representations = self._global_exchange_layers[str(layer_idx)](
                     GraphGlobalExchangeInput(

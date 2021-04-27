@@ -86,10 +86,7 @@ class InvariantArgumentSelectionTask(GraphTaskModel):
             adjacency_lists=adjacency_lists
         )
         final_node_representations = self._gnn(gnn_input, training=training)
-        #print("self._gnn.weights",self._gnn.weights)
-        #print("final_node_representations",final_node_representations)
         node_representations=tf.gather(params=final_node_representations*1,indices=inputs["label_node_indices"])
-        #print("node_representations",node_representations)
         return self.compute_task_output(inputs, node_representations, training)
 
     def compute_task_output(
@@ -157,8 +154,8 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         self._regression_layers = []
         for mlp_node in self._params["regression_hidden_layer_size"]:
             self._regression_layers.append(tf.keras.layers.Dense(
-                units=mlp_node, activation=tf.nn.relu, use_bias=True))
-        self._node_repr_output_layer = tf.keras.layers.Dense(activation=tf.nn.sigmoid,units=1, use_bias=True)  # sigmoid?
+                units=mlp_node, activation=tf.nn.relu, use_bias=True))#tf.nn.relu
+        self._node_repr_output_layer = tf.keras.layers.Dense(activation=tf.nn.sigmoid,units=1, use_bias=True)  # tf.nn.sigmoid
         self._node_to_graph_aggregation = None
         self._disable_tf_function_build=disable_tf_function_build
 
@@ -203,7 +200,6 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             inputs[f"adjacency_list_{edge_type_idx}"]
             for edge_type_idx in range(self._num_edge_types)
         )
-
         # call gnn and get graph representation
         gnn_input = GNNInput(
             node_features=node_labels_embedded,
@@ -244,15 +240,14 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         task_output: Any,
         batch_labels: Dict[str, tf.Tensor],
     ) -> Dict[str, tf.Tensor]:
-        # binary_crossentropy_value=tf.keras.losses.binary_crossentropy(y_true=batch_labels["node_labels"], y_pred=task_output,from_logits=True)
-        # ce = tf.reduce_mean(binary_crossentropy_value)
+        #binary_crossentropy_value=tf.keras.losses.binary_crossentropy(y_true=batch_labels["node_labels"], y_pred=task_output,from_logits=False)
+        #ce = tf.reduce_mean(binary_crossentropy_value)
         # description: set class weight here
-        class_weight=self._params["class_weight"]
-        class_weighted_binary_crossentropy_value = tf.nn.weighted_cross_entropy_with_logits(batch_labels["node_labels"],task_output,class_weight["weight_for_1"]/class_weight["weight_for_0"])
-        #self.get_weighted_binary_crossentropy(batch_labels["node_labels"], task_output, class_weight,from_logits=True)
-        ce = tf.reduce_mean(class_weighted_binary_crossentropy_value)
+        class_weight={"weight_for_1":self._params["class_weight"]["weight_for_1"]/self._params["class_weight"]["weight_for_0"],"weight_for_0":1}
+        ce=self.get_weighted_binary_crossentropy(class_weight,task_output,batch_labels["node_labels"],from_logits=False)
 
-        if math.isnan(ce):
+
+        if math.isnan(tf.reduce_mean(ce)):
             print("batch_features",len(batch_features))
             print("batch_features", batch_features)
             print("label_node_indices",batch_features["label_node_indices"])
@@ -293,27 +288,32 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         epoch_acc = tf.cast(total_num_correct, tf.float32) / total_num_nodes
         return -epoch_acc.numpy(), f"Accuracy = {epoch_acc.numpy():.3f}"
 
-    def get_weighted_binary_crossentropy(self, true_y, predicted_y,class_weight={},from_logits=True):
-        #ce = 0
-        ce_raw=0
-        for y,y_hat in zip(true_y,predicted_y):
-            #y_hat = np.round((lambda: self.sigmoid(y_hat) if from_logits == True else self.logit(y_hat))(),2)
-            # ce_raw = ce_raw + (-y * np.log((self.sigmoid(y_hat))) * class_weight["weight_for_1"]) \
-            #          - ((1 - y) * np.log(1 - (self.sigmoid(y_hat))) * class_weight["weight_for_0"])
-            # l = (1 + ((class_weight["weight_for_1"]/class_weight["weight_for_0"]) - 1) * y)
-            # ce_raw = ce_raw + (1 - y) * y_hat + l * (np.log(1 + np.exp(-abs(y_hat))) + max(-y_hat, 0))
-            ce_raw=ce_raw + tf.nn.weighted_cross_entropy_with_logits([y],[y_hat],class_weight["weight_for_1"]/class_weight["weight_for_0"])
-            # if (y == 1):
-            #     ce = ce + tf.keras.losses.binary_crossentropy([y], [y_hat],from_logits=from_logits) * class_weight["weight_for_1"]
-            # if (y == 0):
-            #     ce = ce + tf.keras.losses.binary_crossentropy([y], [y_hat],from_logits=from_logits) * class_weight["weight_for_0"]
-        return ce_raw/len(true_y)
-        #return ce / len(true_y)
+
+    def get_weighted_binary_crossentropy(self,class_weight, task_output, labels, from_logits=True):
+        #predicted_y = (lambda: task_output if from_logits == False else [self.logit(x) for x in task_output])()
+        #predicted_y = task_output
+        predicted_y =  [self.logit(x) for x in task_output]
+        #description: implemented by exaggerating inputs
+        # weighted_prediction = [y_hat * class_weight["weight_for_1"] if y == 1 else y_hat for y, y_hat in zip(labels, predicted_y)]
+        # return tf.keras.losses.binary_crossentropy(labels, weighted_prediction, from_logits=from_logits)
+        # description: implemented by weighted_cross_entropy_with_logits
+        #print("class_weight", class_weight["weight_for_1"], class_weight["weight_for_0"])
+        #return tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"]))
+        return tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"])
+        # description: implemented by conditions
+        # ce=[]
+        # for y, y_hat in zip(labels,predicted_y):
+        #     if y==1:
+        #         ce.append(tf.keras.losses.binary_crossentropy([y],[y_hat],from_logits=from_logits)*class_weight["weight_for_1"])
+        #     elif y==0:
+        #         ce.append(tf.keras.losses.binary_crossentropy([y],[y_hat],from_logits=from_logits))
+        # return tf.cast(ce,tf.float32)
+
 
     def sigmoid(self,x):
-        return 1 / (1 + np.exp(-x))
+        return 1 / (1 + tf.math.exp(-x))
     def logit(self,p):
-        return np.log(p/(1-p))
+        return tf.math.log(p/(1-p))
 
     def my_round_fun(nself,num_list, threshold):
         return [1 if num > threshold else 0 for num in num_list]

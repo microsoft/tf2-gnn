@@ -375,10 +375,12 @@ class GraphTaskModel(tf.keras.Model):
         task_results = []
         total_loss = tf.constant(0, dtype=tf.float32)
         # description: set class weight here
-        if training==True:
-            self._params["class_weight"] = self._params["class_weight_fold"]["train"]
-        else:
-            self._params["class_weight"]={"weight_for_1":1,"weight_for_0":1}
+        self._params["class_weight"] = self._params["class_weight_fold"]["train"]
+        # if training==True:
+        #     self._params["class_weight"] = self._params["class_weight_fold"]["train"]
+        # else:
+        #     self._params["class_weight"]={"weight_for_1":1,"weight_for_0":1}
+
 
         for step, (batch_features, batch_labels) in enumerate(dataset):
             task_metrics = self._run_step(batch_features, batch_labels, training)
@@ -390,9 +392,11 @@ class GraphTaskModel(tf.keras.Model):
                 epoch_graph_average_loss = (
                     total_loss / float(total_num_graphs)
                 ).numpy()
+                epoch_graph_average_loss=tf.reduce_mean(epoch_graph_average_loss)
                 batch_graph_average_loss = task_metrics["loss"] / float(
                     batch_features["num_graphs_in_batch"]
                 )
+                batch_graph_average_loss=tf.reduce_mean(batch_graph_average_loss)
                 steps_per_second = step / (time.time() - epoch_time_start)
 
                 print(
@@ -405,7 +409,7 @@ class GraphTaskModel(tf.keras.Model):
         if not quiet:
             print("\r\x1b[K", end="")
         total_time = time.time() - epoch_time_start
-        return total_loss / float(total_num_graphs), float(total_num_graphs) / total_time, task_results
+        return tf.reduce_mean(total_loss / float(total_num_graphs)), float(total_num_graphs) / total_time, task_results
 
     # ----------------------------- Prediction Loop
     def predict(self, dataset: tf.data.Dataset):
