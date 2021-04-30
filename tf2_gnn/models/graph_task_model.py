@@ -392,11 +392,11 @@ class GraphTaskModel(tf.keras.Model):
                 epoch_graph_average_loss = (
                     total_loss / float(total_num_graphs)
                 ).numpy()
-                epoch_graph_average_loss=tf.reduce_mean(epoch_graph_average_loss)
+                epoch_graph_average_loss=epoch_graph_average_loss
                 batch_graph_average_loss = task_metrics["loss"] / float(
                     batch_features["num_graphs_in_batch"]
                 )
-                batch_graph_average_loss=tf.reduce_mean(batch_graph_average_loss)
+                batch_graph_average_loss = batch_graph_average_loss
                 steps_per_second = step / (time.time() - epoch_time_start)
 
                 print(
@@ -409,7 +409,7 @@ class GraphTaskModel(tf.keras.Model):
         if not quiet:
             print("\r\x1b[K", end="")
         total_time = time.time() - epoch_time_start
-        return tf.reduce_mean(total_loss / float(total_num_graphs)), float(total_num_graphs) / total_time, task_results
+        return total_loss / float(total_num_graphs), float(total_num_graphs) / total_time, task_results
 
     # ----------------------------- Prediction Loop
     def predict(self, dataset: tf.data.Dataset):

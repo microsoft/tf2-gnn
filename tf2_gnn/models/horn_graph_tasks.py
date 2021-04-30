@@ -247,7 +247,7 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         ce=self.get_weighted_binary_crossentropy(class_weight,task_output,batch_labels["node_labels"],from_logits=False)
 
 
-        if math.isnan(tf.reduce_mean(ce)):
+        if math.isnan(ce):
             print("batch_features",len(batch_features))
             print("batch_features", batch_features)
             print("label_node_indices",batch_features["label_node_indices"])
@@ -298,8 +298,8 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         # return tf.keras.losses.binary_crossentropy(labels, weighted_prediction, from_logits=from_logits)
         # description: implemented by weighted_cross_entropy_with_logits
         #print("class_weight", class_weight["weight_for_1"], class_weight["weight_for_0"])
-        #return tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"]))
-        return tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"])
+        return tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"]))
+        #return tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"])
         # description: implemented by conditions
         # ce=[]
         # for y, y_hat in zip(labels,predicted_y):
