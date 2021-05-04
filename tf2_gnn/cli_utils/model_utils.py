@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import re
+import sys
 from typing import Dict, Any, Optional, Set, Type, Callable
 
 import h5py
@@ -58,8 +59,6 @@ def save_model(
         }
         data_to_store["model_weights"] = var_name_to_weights
 
-    data_to_store.update(extra_data_to_store)
-
     pkl_file = get_model_file_path(save_file, "pkl")
     with open(pkl_file, "wb") as out_file:
         pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
@@ -68,7 +67,7 @@ def save_model(
         print(f"   (Stored model metadata and weights to {pkl_file}).")
     else:
         hdf5_file = get_model_file_path(save_file, "hdf5")
-        model.save_weights(hdf5_file, save_format="h5")
+        model.save_weights(hdf5_file)#, save_format="h5"
         print(f"   (Stored model metadata to {pkl_file} and weights to {hdf5_file})")
 
 
@@ -123,9 +122,7 @@ def load_weights_verbosely(
     var_name_to_weights = data_to_load.get("model_weights")
     if var_name_to_weights is None:
         var_name_to_weights = _read_weights_from_hdf5(save_file)
-
-    first_layer_name = re.sub(r'(?<!^)(?=[A-Z])', '_', type(model).__name__).lower() + "/"
-
+    first_layer_name = re.sub(r'(?<!^)(?=[A-Z])', '_', type(model).__name__).lower() + "/" #replace camel to _ separation
 
     if weight_name_to_var_name is not None:
         remapped_var_name_to_weights = {}
@@ -136,7 +133,7 @@ def load_weights_verbosely(
     tfvar_weight_tuples = []
     used_var_names = set()
     for var_name, tfvar in var_name_to_variable.items():
-        saved_weight = var_name_to_weights.get(first_layer_name+var_name)
+        saved_weight = var_name_to_weights.get(first_layer_name + var_name)
         if saved_weight is None:
             if warn_about_initialisations:
                 print(f"I: Weights for {first_layer_name+var_name} freshly initialised.")
@@ -186,7 +183,6 @@ def load_model_for_prediction(
 
     print(f"Restoring model weights from {trained_model_file}.")
     load_weights_verbosely(trained_model_file, model)
-
     return model
 
 

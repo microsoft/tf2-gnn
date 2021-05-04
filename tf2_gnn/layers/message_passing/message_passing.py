@@ -51,6 +51,7 @@ class MessagePassing(tf.keras.layers.Layer):
     def __init__(self, params: Dict[str, Any], **kwargs):
         super().__init__(**kwargs)
         self._hidden_dim = int(params["hidden_dim"])
+        self.GPU=params["GPU"]
 
         aggregation_fn_name = params["aggregation_function"]
         self._aggregation_fn = get_aggregation_function(aggregation_fn_name)
@@ -167,7 +168,8 @@ class MessagePassing(tf.keras.layers.Layer):
             segment_ids=messages_targets,
             num_segments=num_nodes
         )
-        aggregated_messages = self._my_tf_round(aggregated_messages,1)
+        #tf.test.is_gpu_available()
+        aggregated_messages =  (lambda : self._my_tf_round(aggregated_messages,2) if self.GPU==True  else aggregated_messages)()
         return tf.nn.relu(aggregated_messages)
 
 
