@@ -4,12 +4,38 @@ from typing import Dict, List, NamedTuple, Tuple, Any
 from dpu_utils.tf2utils import MLP
 import tensorflow as tf
 
+
 from tf2_gnn.utils.param_helpers import (
     get_activation_function,
     get_aggregation_function,
 )
 
-
+def binary_round_positive_case(num, digits):
+    x = num
+    shifted = digits
+    while x > 1.0:
+        shifted = shifted - 1
+        x = x / 2.0
+    while x < 0.5:
+        shifted = shifted + 1
+        x = x * 2.0
+    r = tf.round(x * (1 << digits))
+    while shifted > 0:
+        shifted = shifted - 1
+        r = r / 2.0
+    while shifted < 0:
+        shifted = shifted + 1
+        r = r * 2.0
+    return r
+def binary_round(num, digits=10):
+    if num == 0.0:
+        return 0.0
+    elif num < 0.0:
+        return -binary_round_positive_case(-num, digits)
+    else:
+        return binary_round_positive_case(num,digits)
+def row_dealer(row):
+    return tf.map_fn(binary_round,row)
 class MessagePassingInput(NamedTuple):
     """A named tuple to hold input to the message passing layer."""
 
@@ -170,6 +196,9 @@ class MessagePassing(tf.keras.layers.Layer):
         )
         #tf.test.is_gpu_available()
         aggregated_messages =  (lambda : self._my_tf_round(aggregated_messages,2) if self.GPU==True  else aggregated_messages)()
+        #tf.print("before",aggregated_messages)
+        #aggregated_messages = (lambda: tf.map_fn(row_dealer,aggregated_messages) if self.GPU == True else aggregated_messages)()
+        #tf.print("after",aggregated_messages)
         return tf.nn.relu(aggregated_messages)
 
 
@@ -192,7 +221,7 @@ class MessagePassing(tf.keras.layers.Layer):
         #
         # return new_node_states
 
-    def _my_tf_round(self,x, decimals=0):
+    def _my_tf_round(self,x, decimals=0): #trauncate
         multiplier = tf.constant(10 ** decimals, dtype=x.dtype)
         return tf.cast(tf.cast(tf.round(x * multiplier),tf.int32),tf.float32) / multiplier
 
@@ -283,6 +312,8 @@ class MessagePassing(tf.keras.layers.Layer):
 
 
 MESSAGE_PASSING_IMPLEMENTATIONS: Dict[str, MessagePassing] = {}
+
+
 
 
 def register_message_passing_implementation(cls):

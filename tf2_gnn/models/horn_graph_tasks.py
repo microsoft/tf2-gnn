@@ -240,8 +240,8 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         task_output: Any,
         batch_labels: Dict[str, tf.Tensor],
     ) -> Dict[str, tf.Tensor]:
-        #binary_crossentropy_value=tf.keras.losses.binary_crossentropy(y_true=batch_labels["node_labels"], y_pred=task_output,from_logits=False)
-        #ce = tf.reduce_mean(binary_crossentropy_value)
+        # binary_crossentropy_value=tf.keras.losses.binary_crossentropy(y_true=batch_labels["node_labels"], y_pred=task_output,from_logits=False)
+        # ce = tf.reduce_mean(binary_crossentropy_value)
         # description: set class weight here
         class_weight={"weight_for_1":self._params["class_weight"]["weight_for_1"]/self._params["class_weight"]["weight_for_0"],"weight_for_0":1}
         ce=self.get_weighted_binary_crossentropy(class_weight,task_output,batch_labels["node_labels"],from_logits=False)

@@ -72,34 +72,55 @@ class HornGraphDataset(GraphDataset[HornGraphSample]):
             self._node_number_per_edge_type = []
 
         print("data_fold", data_name)
-        print("read GNNInputs from pickle file")
-        pickle_file_name = self.label_type +"-"+self._graph_type+ "-" + self._benchmark + "-gnnInput_" + data_name + "_data"
-        print(pickle_file_name)
-        raw_inputs = pickleRead(pickle_file_name)
+        if self.params["pickle"]==True:
+            print("read GNNInputs from pickle file")
+            pickle_file_name = self.label_type +"-"+self._graph_type+ "-" + self._benchmark + "-gnnInput_" + data_name + "_data"
+            print(pickle_file_name)
+            raw_inputs = pickleRead(pickle_file_name)
 
 
-        final_graphs = raw_inputs.final_graphs
-        node_num_list = []
-        for g in final_graphs:
-            node_num_list.append(len(g.node_features))
-        # Vocabulary size should be total vocabulary size of train, valid, test data
-        self._node_vocab_size = len(raw_inputs.vocabulary_set)
-        # if self._node_vocab_size<max(node_num_list):
-        #     self._node_vocab_size=max(node_num_list)
+            final_graphs = raw_inputs.final_graphs
+            node_num_list = []
+            for g in final_graphs:
+                node_num_list.append(len(g.node_features))
+            # Vocabulary size should be total vocabulary size of train, valid, test data
+            self._node_vocab_size = len(raw_inputs.vocabulary_set)
+            # if self._node_vocab_size<max(node_num_list):
+            #     self._node_vocab_size=max(node_num_list)
 
-        self._num_edge_types = raw_inputs._num_edge_types
-        self._total_number_of_nodes = raw_inputs._total_number_of_nodes
-        self._node_number_per_edge_type = raw_inputs._node_number_per_edge_type
-        self._label_list[data_name] = raw_inputs.labels
-        self._file_list[data_name] = raw_inputs.file_names
-        self._class_weight_fold[data_name]= raw_inputs.class_weight[data_name]
+            self._num_edge_types = raw_inputs._num_edge_types
+            self._total_number_of_nodes = raw_inputs._total_number_of_nodes
+            self._node_number_per_edge_type = raw_inputs._node_number_per_edge_type
+            self._label_list[data_name] = raw_inputs.labels
+            self._file_list[data_name] = raw_inputs.file_names
+            self._class_weight_fold[data_name]= raw_inputs.class_weight[data_name]
 
-        print("raw_inputs.label_size", raw_inputs.label_size)
-        print("raw_inputs._total_number_of_nodes", raw_inputs._total_number_of_nodes)
-        print("raw_inputs._num_edge_types", raw_inputs._num_edge_types)
-        print("raw_inputs._node_number_per_edge_type", raw_inputs._node_number_per_edge_type)
-        print("_node_vocab_size",self._node_vocab_size )
-        print("raw_inputs.class_weight", self._class_weight_fold)
+            print("raw_inputs.label_size", raw_inputs.label_size)
+            print("raw_inputs._total_number_of_nodes", raw_inputs._total_number_of_nodes)
+            print("raw_inputs._num_edge_types", raw_inputs._num_edge_types)
+            print("raw_inputs._node_number_per_edge_type", raw_inputs._node_number_per_edge_type)
+            print("_node_vocab_size",self._node_vocab_size )
+            print("raw_inputs.class_weight", self._class_weight_fold)
+
+        else:
+            tokenized_node_label_ids = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            adjacency_lists = [
+                np.array([[0, 1], [0, 2], [1, 3], [1, 4], [1, 5], [4, 7], [4, 8], [2, 6], [6, 9], [6, 10]])]
+            node_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            learning_labels = [0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1]
+            self._num_edge_types = 1
+            self._node_number_per_edge_type=[2]
+            self._total_number_of_nodes = len(tokenized_node_label_ids)
+            self._label_list[data_name] = learning_labels
+            self._file_list[data_name] = "tree_leaf_identify"
+            self._class_weight_fold[data_name] = {'weight_for_0': 1, 'weight_for_1': 1}
+            self._node_vocab_size = 1
+            final_graphs = [HornGraphSample(
+                adjacency_lists=adjacency_lists,
+                node_features=np.array(tokenized_node_label_ids),  # node_label_ids,tokenized_node_label_ids
+                node_indices=np.array(node_indices),
+                node_label=np.array(learning_labels)
+            )]
 
         return final_graphs
 

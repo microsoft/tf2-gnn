@@ -321,3 +321,4 @@ def get_model_and_dataset(
         load_weights_verbosely(trained_model_file, model)
 
     return dataset, model
+
