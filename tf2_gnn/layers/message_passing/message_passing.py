@@ -195,8 +195,11 @@ class MessagePassing(tf.keras.layers.Layer):
             num_segments=num_nodes
         )
         #tf.test.is_gpu_available()
-        aggregated_messages =  (lambda : self._my_tf_round(aggregated_messages,2) if self.GPU==True  else aggregated_messages)()
+        #todo: deal with non-deterministic results from unsorted_segment_sum
+        #trauncating
+        aggregated_messages =  (lambda : self._traucate(aggregated_messages,2) if self.GPU==True  else aggregated_messages)()
         #tf.print("before",aggregated_messages)
+        #rounding
         #aggregated_messages = (lambda: tf.map_fn(row_dealer,aggregated_messages) if self.GPU == True else aggregated_messages)()
         #tf.print("after",aggregated_messages)
         return tf.nn.relu(aggregated_messages)
@@ -221,7 +224,7 @@ class MessagePassing(tf.keras.layers.Layer):
         #
         # return new_node_states
 
-    def _my_tf_round(self,x, decimals=0): #trauncate
+    def _traucate(self,x, decimals=0): #trauncate
         multiplier = tf.constant(10 ** decimals, dtype=x.dtype)
         return tf.cast(tf.cast(tf.round(x * multiplier),tf.int32),tf.float32) / multiplier
 
