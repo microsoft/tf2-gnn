@@ -375,9 +375,9 @@ class GraphTaskModel(tf.keras.Model):
         task_results = []
         total_loss = tf.constant(0, dtype=tf.float32)
         # description: set class weight here
-        self._params["class_weight"] = self._params["class_weight_fold"]["train"]
+        self._params["class_weight"] = self._params["class_weight_fold"]
         # if training==True:
-        #     self._params["class_weight"] = self._params["class_weight_fold"]["train"]
+        #     self._params["class_weight"] = self._params["class_weight_fold"]
         # else:
         #     self._params["class_weight"]={"weight_for_1":1,"weight_for_0":1}
 

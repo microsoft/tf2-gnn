@@ -197,7 +197,7 @@ class MessagePassing(tf.keras.layers.Layer):
         #tf.test.is_gpu_available()
         #todo: deal with non-deterministic results from unsorted_segment_sum
         #trauncating
-        aggregated_messages =  (lambda : self._traucate(aggregated_messages,2) if self.GPU==True  else aggregated_messages)()
+        aggregated_messages =  (lambda : self._traucate(aggregated_messages,8) if self.GPU==True  else aggregated_messages)()
         #tf.print("before",aggregated_messages)
         #rounding
         #aggregated_messages = (lambda: tf.map_fn(row_dealer,aggregated_messages) if self.GPU == True else aggregated_messages)()

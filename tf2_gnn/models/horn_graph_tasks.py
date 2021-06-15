@@ -6,6 +6,12 @@ from tf2_gnn.models import GraphTaskModel
 from tf2_gnn import GNNInput, GNN
 import math
 
+from tensorflow.python.framework import ops
+from tensorflow.python.keras import backend as K
+from tensorflow.python.ops import math_ops
+from tensorflow.python.framework import smart_cond
+from tensorflow.python.ops import variables as variables_module
+
 class InvariantArgumentSelectionTask(GraphTaskModel):
     def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None,disable_tf_function_build: bool = False):
         super().__init__(params, dataset=dataset, name=name)
@@ -155,7 +161,7 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         for mlp_node in self._params["regression_hidden_layer_size"]:
             self._regression_layers.append(tf.keras.layers.Dense(
                 units=mlp_node, activation=tf.nn.relu, use_bias=True))#tf.nn.relu
-        self._node_repr_output_layer = tf.keras.layers.Dense(activation=tf.nn.sigmoid,units=1, use_bias=True)  # tf.nn.sigmoid
+        self._node_repr_output_layer = tf.keras.layers.Dense(activation=None,units=1, use_bias=True)  # tf.nn.sigmoid
         self._node_to_graph_aggregation = None
         self._disable_tf_function_build=disable_tf_function_build
 
@@ -232,6 +238,7 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
             x = self._regression_layers[i](x)
         predicted_node_label = self._node_repr_output_layer(x)  # Shape [argument number, 1]
 
+
         return tf.squeeze(predicted_node_label, axis=-1)
 
     def compute_task_metrics(
@@ -244,9 +251,10 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
         # ce = tf.reduce_mean(binary_crossentropy_value)
         # description: set class weight here
         class_weight={"weight_for_1":self._params["class_weight"]["weight_for_1"]/self._params["class_weight"]["weight_for_0"],"weight_for_0":1}
-        ce=self.get_weighted_binary_crossentropy(class_weight,task_output,batch_labels["node_labels"],from_logits=False)
-
-
+        # description: if weight_for_1 == 1, call binary_crossentropy, otherwise call get_weighted_binary_crossentropy
+        # ce=(lambda : tf.reduce_mean(tf.keras.losses.binary_crossentropy(y_true=batch_labels["node_labels"], y_pred=task_output,from_logits=True)) \
+        #     if class_weight["weight_for_1"] ==1 else self.get_weighted_binary_crossentropy(class_weight,task_output,batch_labels["node_labels"],from_logits=True))()
+        ce=self.get_weighted_binary_crossentropy(class_weight,task_output,batch_labels["node_labels"],from_logits=True)
         if math.isnan(ce):
             print("batch_features",len(batch_features))
             print("batch_features", batch_features)
@@ -291,13 +299,12 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
 
     def get_weighted_binary_crossentropy(self,class_weight, task_output, labels, from_logits=True):
         #predicted_y = (lambda: task_output if from_logits == False else [self.logit(x) for x in task_output])()
-        #predicted_y = task_output
-        predicted_y =  [self.logit(x) for x in task_output]
+        predicted_y = task_output#tf.math.sigmoid(task_output)
+
         #description: implemented by exaggerating inputs
         # weighted_prediction = [y_hat * class_weight["weight_for_1"] if y == 1 else y_hat for y, y_hat in zip(labels, predicted_y)]
         # return tf.keras.losses.binary_crossentropy(labels, weighted_prediction, from_logits=from_logits)
         # description: implemented by weighted_cross_entropy_with_logits
-        #print("class_weight", class_weight["weight_for_1"], class_weight["weight_for_0"])
         return tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"]))
         #return tf.nn.weighted_cross_entropy_with_logits(labels, predicted_y, class_weight["weight_for_1"])
         # description: implemented by conditions
@@ -315,8 +322,12 @@ class InvariantNodeIdentifyTask(GraphTaskModel):
     def logit(self,p):
         return tf.math.log(p/(1-p))
 
-    def my_round_fun(nself,num_list, threshold):
+    def my_round_fun(self,num_list, threshold):
         return [1 if num > threshold else 0 for num in num_list]
+    def _traucate(self,x, decimals=0): #trauncate
+        multiplier = tf.constant(10 ** decimals, dtype=x.dtype)
+        return tf.cast(tf.cast(tf.round(x * multiplier),tf.int32),tf.float32) / multiplier
+
 
 
 
