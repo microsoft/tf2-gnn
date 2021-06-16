@@ -18,9 +18,6 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
         super_params.update(these_hypers)
         return super_params
 
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
-        super().__init__(params, dataset=dataset, name=name)
-
     def compute_task_output(
         self,
         batch_features: Dict[str, tf.Tensor],
@@ -80,15 +77,25 @@ class GraphBinaryClassificationTask(GraphRegressionTask):
             labels.append(batch_labels["target_value"])
         labels = tf.concat(labels, axis=0).numpy()
 
+        try:
+            roc_auc = metrics.roc_auc_score(y_true=labels, y_score=predictions)
+            average_precision = metrics.average_precision_score(
+                y_true=labels, y_score=predictions
+            )
+        except:
+            roc_auc = np.nan
+            average_precision = np.nan
+
         metrics = dict(
             acc=metrics.accuracy_score(y_true=labels, y_pred=rounded_preds),
             balanced_acc=metrics.balanced_accuracy_score(
                 y_true=labels, y_pred=rounded_preds
             ),
-            precicision=metrics.precision_score(y_true=labels, y_pred=rounded_preds),
+            precision=metrics.precision_score(y_true=labels, y_pred=rounded_preds),
             recall=metrics.recall_score(y_true=labels, y_pred=rounded_preds),
             f1_score=metrics.f1_score(y_true=labels, y_pred=rounded_preds),
-            roc_auc=metrics.roc_auc_score(y_true=labels, y_score=predictions),
+            roc_auc=roc_auc,
+            average_precision=average_precision,
         )
 
         return metrics

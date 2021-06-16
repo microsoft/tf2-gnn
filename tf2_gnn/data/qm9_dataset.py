@@ -59,9 +59,9 @@ class QM9Dataset(GraphDataset[QM9GraphSample]):
 
         return super_hypers
 
-    def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None, **kwargs):
         logger.info("Initialising QM9 Dataset.")
-        super().__init__(params, metadata=metadata)
+        super().__init__(params, metadata=metadata, **kwargs)
         self._params = params
         self._num_fwd_edge_types = 4
 

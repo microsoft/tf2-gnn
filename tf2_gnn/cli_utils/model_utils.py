@@ -1,7 +1,7 @@
 import json
 import os
 import pickle
-from typing import Dict, Any, Optional, Set, Type
+from typing import Dict, Any, Optional, Set, Type, Callable
 
 import h5py
 import numpy as np
@@ -16,32 +16,8 @@ from .task_utils import task_name_to_model_class
 from .param_helpers import override_model_params_with_hyperdrive_params
 
 
-def save_model(save_file: str, model: GraphTaskModel, dataset: GraphDataset) -> None:
-    data_to_store = {
-        "model_class": model.__class__,
-        "model_params": model._params,
-        "dataset_class": dataset.__class__,
-        "dataset_params": dataset._params,
-        "dataset_metadata": dataset._metadata,
-        "num_edge_types": dataset.num_edge_types,
-        "node_feature_shape": dataset.node_feature_shape,
-    }
-    pkl_file = get_model_file_path(save_file, "pkl")
-    hdf5_file = get_model_file_path(save_file, "hdf5")
-    with open(pkl_file, "wb") as out_file:
-        pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
-    model.save_weights(hdf5_file, save_format="h5")
-    print(f"   (Stored model metadata to {pkl_file} and weights to {hdf5_file})")
-
-
-def load_weights_verbosely(
-    save_file: str,
-    model: GraphTaskModel,
-    warn_about_initialisations: bool = True,
-    warn_about_ignored: bool = True,
-):
-    hdf5_save_file = get_model_file_path(save_file, "hdf5")
-    var_name_to_variable = {}
+def _get_name_to_variable_map(model: GraphTaskModel) -> Dict[str, tf.Variable]:
+    var_name_to_variable: Dict[str, tf.Variable] = {}
     var_names_unique = True
     for var in model.variables:
         if var.name in var_name_to_variable:
@@ -55,7 +31,48 @@ def load_weights_verbosely(
         raise ValueError(
             "Model variables have duplicate names, making weight restoring impossible."
         )
+    return var_name_to_variable
 
+
+def save_model(
+    save_file: str,
+    model: GraphTaskModel,
+    dataset: GraphDataset,
+    extra_data_to_store: Dict[str, Any] = {},
+    store_weights_in_pkl: bool = False,
+) -> None:
+    data_to_store = {
+        "model_class": model.__class__,
+        "model_params": model._params,
+        "dataset_class": dataset.__class__,
+        "dataset_params": dataset._params,
+        "dataset_metadata": dataset._metadata,
+        "num_edge_types": dataset.num_edge_types,
+        "node_feature_shape": dataset.node_feature_shape,
+    }
+    if store_weights_in_pkl:
+        var_name_to_variable = _get_name_to_variable_map(model)
+        var_name_to_weights = {
+            name: var.value().numpy() for name, var in var_name_to_variable.items()
+        }
+        data_to_store["model_weights"] = var_name_to_weights
+
+    data_to_store.update(extra_data_to_store)
+
+    pkl_file = get_model_file_path(save_file, "pkl")
+    with open(pkl_file, "wb") as out_file:
+        pickle.dump(data_to_store, out_file, pickle.HIGHEST_PROTOCOL)
+
+    if store_weights_in_pkl:
+        print(f"   (Stored model metadata and weights to {pkl_file}).")
+    else:
+        hdf5_file = get_model_file_path(save_file, "hdf5")
+        model.save_weights(hdf5_file, save_format="h5")
+        print(f"   (Stored model metadata to {pkl_file} and weights to {hdf5_file})")
+
+
+def _read_weights_from_hdf5(save_file):
+    hdf5_save_file = get_model_file_path(save_file, "hdf5")
     var_name_to_weights = {}
 
     def hdf5_item_visitor(name, item):
@@ -73,18 +90,59 @@ def load_weights_verbosely(
         for model_sublayer in data_hdf5.values():
             model_sublayer.visititems(hdf5_item_visitor)
 
+    return var_name_to_weights
+
+
+# This map helps to load weights from old version of the library in cases where we have changed
+# the naming of variables inbetween versions:
+BACKWARD_COMPAT_WEIGHT_NAME_MAP = {
+    "/Global_Exchange/graph_global_mean_exchange/": "/Global_Exchange/GraphGlobalMeanExchange/",
+    "/Global_Exchange/graph_global_gru_exchange/": "/Global_Exchange/GraphGlobalGRUExchange/",
+    "/Global_Exchange/graph_global_mlp_exchange/": "/Global_Exchange/GraphGlobalMLPExchange/",
+}
+
+
+def backward_compat_weight_renaming_fn(weight_name: str) -> str:
+    for old_name, new_name in BACKWARD_COMPAT_WEIGHT_NAME_MAP.items():
+        weight_name = weight_name.replace(old_name, new_name)
+    return weight_name
+
+
+def load_weights_verbosely(
+    save_file: str,
+    model: GraphTaskModel,
+    warn_about_initialisations: bool = True,
+    warn_about_ignored: bool = True,
+    weight_name_to_var_name: Optional[Callable[[str], str]] = backward_compat_weight_renaming_fn,
+):
+    var_name_to_variable = _get_name_to_variable_map(model)
+
+    with open(get_model_file_path(save_file, "pkl"), "rb") as in_file:
+        data_to_load = pickle.load(in_file)
+    var_name_to_weights = data_to_load.get("model_weights")
+    if var_name_to_weights is None:
+        var_name_to_weights = _read_weights_from_hdf5(save_file)
+
+    if weight_name_to_var_name is not None:
+        remapped_var_name_to_weights = {}
+        for weight_name, weight in var_name_to_weights.items():
+            remapped_var_name_to_weights[weight_name_to_var_name(weight_name)] = weight
+        var_name_to_weights = remapped_var_name_to_weights
+
     tfvar_weight_tuples = []
+    used_var_names = set()
     for var_name, tfvar in var_name_to_variable.items():
         saved_weight = var_name_to_weights.get(var_name)
         if saved_weight is None:
             if warn_about_initialisations:
                 print(f"I: Weights for {var_name} freshly initialised.")
         else:
+            used_var_names.add(var_name)
             tfvar_weight_tuples.append((tfvar, saved_weight))
 
     if warn_about_ignored:
         for var_name in var_name_to_weights.keys():
-            if var_name not in var_name_to_variable:
+            if var_name not in used_var_names:
                 print(f"I: Model does not use saved weights for {var_name}.")
 
     K.batch_set_value(tfvar_weight_tuples)
@@ -101,7 +159,9 @@ def load_dataset_for_prediction(trained_model_file: str):
     )
 
 
-def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
+def load_model_for_prediction(
+    trained_model_file: str, dataset: GraphDataset, disable_tf_function_build: bool = False
+):
     with open(get_model_file_path(trained_model_file, "pkl"), "rb") as in_file:
         data_to_load = pickle.load(in_file)
     model_class: Type[GraphTaskModel] = data_to_load["model_class"]
@@ -109,7 +169,11 @@ def load_model_for_prediction(trained_model_file: str, dataset: GraphDataset):
     # Clear the Keras session so that unique naming does not mess up weight loading.
     tf.keras.backend.clear_session()
 
-    model = model_class(params=data_to_load.get("model_params", {}), dataset=dataset,)
+    model = model_class(
+        params=data_to_load.get("model_params", {}),
+        dataset=dataset,
+        disable_tf_function_build=disable_tf_function_build,
+    )
 
     data_description = dataset.get_batch_tf_data_description()
     model.build(data_description.batch_features_shapes)
@@ -129,11 +193,10 @@ def get_model(
     loaded_model_hyperparameters: Dict[str, Any],
     cli_model_hyperparameter_overrides: Dict[str, Any],
     hyperdrive_hyperparameter_overrides: Dict[str, str],
+    disable_tf_function_build: bool = False,
 ) -> GraphTaskModel:
     if not model_cls:
-        model_cls, model_default_hyperparameter_overrides = task_name_to_model_class(
-            task_name
-        )
+        model_cls, model_default_hyperparameter_overrides = task_name_to_model_class(task_name)
         model_params = model_cls.get_default_hyperparameters(msg_passing_implementation)
         print(f" Model default parameters: {model_params}")
         model_params.update(model_default_hyperparameter_overrides)
@@ -150,9 +213,7 @@ def get_model(
         model_params = loaded_model_hyperparameters
     model_params.update(cli_model_hyperparameter_overrides)
     if len(cli_model_hyperparameter_overrides):
-        print(
-            f"  Model parameters overridden from CLI: {cli_model_hyperparameter_overrides}"
-        )
+        print(f"  Model parameters overridden from CLI: {cli_model_hyperparameter_overrides}")
     if len(hyperdrive_hyperparameter_overrides) > 0:
         override_model_params_with_hyperdrive_params(
             model_params, hyperdrive_hyperparameter_overrides
@@ -160,7 +221,9 @@ def get_model(
         print(
             f"  Model parameters overridden for Hyperdrive: {hyperdrive_hyperparameter_overrides}"
         )
-    return model_cls(model_params, dataset=dataset)
+    return model_cls(
+        model_params, dataset=dataset, disable_tf_function_build=disable_tf_function_build
+    )
 
 
 # TODO: A better solution to 'loading weights only without model and class' is required.
@@ -176,6 +239,7 @@ def get_model_and_dataset(
     hyperdrive_hyperparameter_overrides: Dict[str, str] = {},
     folds_to_load: Optional[Set[DataFold]] = None,
     load_weights_only: bool = False,
+    disable_tf_function_build: bool = False,
 ):
     if trained_model_file and not os.path.exists(trained_model_file):
         print(f"W: Asked to load from {trained_model_file}, which does not exist. Ignoring.")
@@ -241,10 +305,9 @@ def get_model_and_dataset(
             "model_params", {}
         ),
         loaded_model_hyperparameters=data_to_load.get("model_params", {}),
-        cli_model_hyperparameter_overrides=json.loads(
-            cli_model_hyperparameter_overrides or "{}"
-        ),
+        cli_model_hyperparameter_overrides=json.loads(cli_model_hyperparameter_overrides or "{}"),
         hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides or {},
+        disable_tf_function_build=disable_tf_function_build,
     )
 
     data_description = dataset.get_batch_tf_data_description()

@@ -31,13 +31,20 @@ class GraphTaskModel(tf.keras.Model):
         params.update(these_hypers)
         return params
 
-    def __init__(self, params: Dict[str, Any], dataset: GraphDataset, name: str = None):
+    def __init__(
+        self,
+        params: Dict[str, Any],
+        dataset: GraphDataset,
+        name: str = None,
+        disable_tf_function_build: bool = False
+    ):
         super().__init__(name=name)
         self._params = params
         self._num_edge_types = dataset.num_edge_types
         self._use_intermediate_gnn_results = params.get(
             "use_intermediate_gnn_results", False
         )
+        self._disable_tf_function_build = disable_tf_function_build
 
         # Keep track of the training step as a TF variable
         self._train_step_counter = tf.Variable(
@@ -66,7 +73,7 @@ class GraphTaskModel(tf.keras.Model):
 
     @staticmethod
     def _pack(input: Dict[str, Any], names: Tuple[str, ...]) -> Tuple:
-        return tuple(input[name] for name in names)
+        return tuple(input.get(name) for name in names)
 
     def _pack_features(self, batch_features: Dict[str, Any]) -> Tuple:
         return self._pack(batch_features, self._batch_feature_names)
@@ -76,7 +83,7 @@ class GraphTaskModel(tf.keras.Model):
 
     @staticmethod
     def _unpack(input: Tuple, names: Tuple) -> Dict[str, Any]:
-        return {name: value for name, value in zip(names, input)}
+        return {name: value for name, value in zip(names, input) if value is not None}
 
     def _unpack_features(self, batch_features: Tuple) -> Dict[str, Any]:
         return self._unpack(batch_features, self._batch_feature_names)
@@ -110,17 +117,18 @@ class GraphTaskModel(tf.keras.Model):
 
         super().build([])
 
-        setattr(
-            self,
-            "_fast_run_step",
-            tf.function(
-                input_signature=(
-                    self._batch_feature_spec,
-                    self._batch_label_spec,
-                    tf.TensorSpec(shape=(), dtype=tf.bool),
-                )
-            )(self._fast_run_step),
-        )
+        if not self._disable_tf_function_build:
+            setattr(
+                self,
+                "_fast_run_step",
+                tf.function(
+                    input_signature=(
+                        self._batch_feature_spec,
+                        self._batch_label_spec,
+                        tf.TensorSpec(shape=(), dtype=tf.bool),
+                    )
+                )(self._fast_run_step),
+            )
 
     def get_initial_node_feature_shape(self, input_shapes) -> tf.TensorShape:
         return input_shapes["node_features"]

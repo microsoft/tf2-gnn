@@ -31,28 +31,24 @@ def log_line(log_file: str, msg: str):
     print(msg)
 
 
-def train(
+def train_loop(
     model: GraphTaskModel,
-    dataset: GraphDataset,
-    log_fun: Callable[[str], None],
-    run_id: str,
+    train_data: tf.data.Dataset,
+    valid_data: tf.data.Dataset,
     max_epochs: int,
     patience: int,
-    save_dir: str,
+    log_fun: Callable[[str], None],
+    save_model_fun: Callable[[GraphTaskModel], None],
     quiet: bool = False,
     aml_run=None,
-):
-    train_data = dataset.get_tensorflow_dataset(DataFold.TRAIN).prefetch(3)
-    valid_data = dataset.get_tensorflow_dataset(DataFold.VALIDATION).prefetch(3)
-
-    save_file = os.path.join(save_dir, f"{run_id}_best.pkl")
-
+) -> float:
     _, _, initial_valid_results = model.run_one_epoch(valid_data, training=False, quiet=quiet)
     best_valid_metric, best_val_str = model.compute_epoch_metrics(initial_valid_results)
     log_fun(f"Initial valid metric: {best_val_str}.")
-    save_model(save_file, model, dataset)
+    save_model_fun(model)
     best_valid_epoch = 0
     train_time_start = time.time()
+
     for epoch in range(1, max_epochs + 1):
         log_fun(f"== Epoch {epoch}")
         train_loss, train_speed, train_results = model.run_one_epoch(
@@ -81,7 +77,7 @@ def train(
             log_fun(
                 f"  (Best epoch so far, target metric decreased to {valid_metric:.5f} from {best_valid_metric:.5f}.)",
             )
-            save_model(save_file, model, dataset)
+            save_model_fun(model)
             best_valid_metric = valid_metric
             best_valid_epoch = epoch
         elif epoch - best_valid_epoch >= patience:
@@ -90,8 +86,45 @@ def train(
                 f"Stopping training after {patience} epochs without "
                 f"improvement on validation metric.",
             )
-            log_fun(f"Training took {total_time}s. Best validation metric: {best_valid_metric}",)
+            log_fun(
+                f"Training took {total_time}s. Best validation metric: {best_valid_metric}",
+            )
             break
+
+    return best_valid_metric
+
+
+def train(
+    model: GraphTaskModel,
+    dataset: GraphDataset,
+    log_fun: Callable[[str], None],
+    run_id: str,
+    max_epochs: int,
+    patience: int,
+    save_dir: str,
+    quiet: bool = False,
+    aml_run=None,
+):
+    train_data = dataset.get_tensorflow_dataset(DataFold.TRAIN).prefetch(3)
+    valid_data = dataset.get_tensorflow_dataset(DataFold.VALIDATION).prefetch(3)
+
+    save_file = os.path.join(save_dir, f"{run_id}_best.pkl")
+
+    def save_model_fun(model: GraphTaskModel):
+        save_model(save_file, model, dataset)
+
+    train_loop(
+        model,
+        train_data,
+        valid_data,
+        max_epochs=max_epochs,
+        patience=patience,
+        log_fun=log_fun,
+        save_model_fun=save_model_fun,
+        quiet=quiet,
+        aml_run=aml_run,
+    )
+
     return save_file
 
 
@@ -109,7 +142,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
     os.makedirs(args.save_dir, exist_ok=True)
     run_id = make_run_id(args.model, args.task, args.run_name)
     log_file = os.path.join(args.save_dir, f"{run_id}.log")
-    
+
     def log(msg):
         log_line(log_file, msg)
 
@@ -129,6 +162,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
         hyperdrive_hyperparameter_overrides=hyperdrive_hyperparameter_overrides,
         folds_to_load={DataFold.TRAIN, DataFold.VALIDATION},
         load_weights_only=args.load_weights_only,
+        disable_tf_function_build=args.disable_tf_func,
     )
 
     log(f"Dataset parameters: {json.dumps(unwrap_tf_tracked_data(dataset._params))}")
@@ -180,7 +214,7 @@ def run_train_from_args(args, hyperdrive_hyperparameter_overrides: Dict[str, str
             pass  # ignore if there are no fancier metrics
 
 
-def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
+def get_train_cli_arg_parser(default_model_type: Optional[str] = None):
     """
     Get an argparse argument parser object with common options for training
     GNN-based models.
@@ -223,7 +257,7 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         "--save-dir",
         dest="save_dir",
         type=str,
-        default="trained_model",
+        default="outputs",
         help="Path in which to store the trained model and log.",
     )
     parser.add_argument(
@@ -253,10 +287,17 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         help="Maximal number of epochs to continue training without improvement.",
     )
     parser.add_argument(
-        "--seed", dest="random_seed", type=int, default=0, help="Random seed to use.",
+        "--seed",
+        dest="random_seed",
+        type=int,
+        default=0,
+        help="Random seed to use.",
     )
     parser.add_argument(
-        "--run-name", dest="run_name", type=str, help="A human-readable name for this run.",
+        "--run-name",
+        dest="run_name",
+        type=str,
+        help="A human-readable name for this run.",
     )
     parser.add_argument(
         "--azure-info",
@@ -277,7 +318,16 @@ def get_train_cli_arg_parser(default_model_type: Optional[str]=None):
         help="Optional to only load the weights of the model rather than class and dataset for further training (used in fine-tuning on pretrained network). Should be model stored in earlier run.",
     )
     parser.add_argument(
-        "--quiet", dest="quiet", action="store_true", help="Generate less output during training.",
+        "--disable-tf-func",
+        dest="disable_tf_func",
+        action="store_true",
+        help="Optional to disable the building of tf function graphs and run in eager mode.",
+    )
+    parser.add_argument(
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        help="Generate less output during training.",
     )
     parser.add_argument(
         "--run-test",

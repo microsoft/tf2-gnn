@@ -10,6 +10,7 @@ class TestInput(NamedTuple):
     num_nodes: int
     add_self_loop_edges: bool
     tie_fwd_bkwd_edges: Union[bool, List[int]]
+    self_loop_edge_type: int
 
 
 class TestOutput(NamedTuple):
@@ -23,13 +24,17 @@ class TestCase(NamedTuple):
 
 
 def create_test_input(
-    add_self_loop_edges: bool, tie_fwd_bkwd_edges: Union[bool, List[int]], two_edge_types=False
+    add_self_loop_edges: bool,
+    tie_fwd_bkwd_edges: Union[bool, List[int]],
+    two_edge_types=False,
+    self_loop_edge_type=0,
 ) -> TestInput:
     return TestInput(
         adjacency_lists=[[(0, 1)], [(1, 2)]] if two_edge_types else [[(0, 1), (1, 2)]],
         num_nodes=3,
         add_self_loop_edges=add_self_loop_edges,
         tie_fwd_bkwd_edges=tie_fwd_bkwd_edges,
+        self_loop_edge_type=self_loop_edge_type,
     )
 
 
@@ -73,6 +78,24 @@ all_test_cases = [
     ),
     TestCase(
         test_input=create_test_input(
+            add_self_loop_edges=True, tie_fwd_bkwd_edges=False, self_loop_edge_type=-1
+        ),
+        expected_output=create_test_output(
+            adjacency_lists=[[(0, 1), (1, 2)], [(1, 0), (2, 1)], [(0, 0), (1, 1), (2, 2)]],
+            type_to_num_incoming_edges=[[0, 1, 1], [1, 1, 0], [1, 1, 1]],
+        ),
+    ),
+    TestCase(
+        test_input=create_test_input(
+            add_self_loop_edges=True, tie_fwd_bkwd_edges=True, self_loop_edge_type=-1
+        ),
+        expected_output=create_test_output(
+            adjacency_lists=[[(0, 1), (1, 2), (1, 0), (2, 1)], [(0, 0), (1, 1), (2, 2)]],
+            type_to_num_incoming_edges=[[1, 2, 1], [1, 1, 1]],
+        ),
+    ),
+    TestCase(
+        test_input=create_test_input(
             add_self_loop_edges=False, tie_fwd_bkwd_edges=[0], two_edge_types=True
         ),
         expected_output=create_test_output(
@@ -102,6 +125,7 @@ def test_process_adjacency_lists(test_case: TestCase):
         tied_fwd_bkwd_edge_types=get_tied_edge_types(
             tie_fwd_bkwd_edges=inp.tie_fwd_bkwd_edges, num_fwd_edge_types=len(inp.adjacency_lists)
         ),
+        self_loop_edge_type=inp.self_loop_edge_type,
     )
 
     out = test_case.expected_output

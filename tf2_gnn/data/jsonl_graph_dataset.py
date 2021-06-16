@@ -36,9 +36,9 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
         return super_hypers
 
     def __init__(
-        self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None,
+        self, params: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None, **kwargs,
     ):
-        super().__init__(params, metadata=metadata)
+        super().__init__(params, metadata=metadata, **kwargs)
         self._params = params
         self._num_fwd_edge_types = params["num_fwd_edge_types"]
 
@@ -53,7 +53,6 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
             add_self_loop_edges=params["add_self_loop_edges"],
         )
 
-        self._node_feature_shape: Optional[Tuple[int]] = None
         self._loaded_data: Dict[DataFold, List[GraphSampleType]] = {}
 
     @property
@@ -63,10 +62,12 @@ class JsonLGraphDataset(GraphDataset[GraphSampleType]):
     @property
     def node_feature_shape(self) -> Tuple:
         """Return the shape of the node features."""
-        if self._node_feature_shape is None:
+        node_feature_shape = self.metadata.get("_node_feature_shape")
+        if node_feature_shape is None:
             some_data_fold = next(iter(self._loaded_data.values()))
-            self._node_feature_shape = (len(some_data_fold[0].node_features[0]),)
-        return self._node_feature_shape
+            node_feature_shape = (len(some_data_fold[0].node_features[0]),)
+            self.metadata["_node_feature_shape"] = node_feature_shape
+        return node_feature_shape
 
     def load_metadata(self, path: RichPath) -> None:
         """Load the metadata for a dataset (such as vocabularies, names of properties, ...)
