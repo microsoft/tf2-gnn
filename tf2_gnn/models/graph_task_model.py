@@ -53,7 +53,6 @@ class GraphTaskModel(tf.keras.Model):
 
         # Store a couple of descriptions for jit compilation in the build function.
         batch_description = dataset.get_batch_tf_data_description()
-        self._data_has_edge_features = "edge_features_0" in batch_description.batch_features_types.keys()
         self._batch_feature_names = tuple(batch_description.batch_features_types.keys())
         self._batch_label_names = tuple(batch_description.batch_labels_types.keys())
         self._batch_feature_spec = tuple(
@@ -95,12 +94,11 @@ class GraphTaskModel(tf.keras.Model):
         graph_params = {
             name[4:]: value for name, value in self._params.items() if name.startswith("gnn_")
         }
-        self._gnn = GNN(graph_params, use_edge_features=self._data_has_edge_features)
+        self._gnn = GNN(graph_params)
 
         edge_feature_shapes: List[tf.TensorShape] = []
-        if self._data_has_edge_features:
-            for edge_type_idx in range(self._num_edge_types):
-                edge_feature_shapes.append(input_shapes[f"edge_features_{edge_type_idx}"])
+        for edge_type_idx in range(self._num_edge_types):
+            edge_feature_shapes.append(input_shapes[f"edge_features_{edge_type_idx}"])
 
         self._gnn.build(
             GNNInput(
@@ -169,8 +167,7 @@ class GraphTaskModel(tf.keras.Model):
         edge_features: List[tf.Tensor] = []
         for edge_type_idx in range(self._num_edge_types):
             adjacency_lists.append(inputs[f"adjacency_list_{edge_type_idx}"])
-            if self._data_has_edge_features:
-                edge_features.append(inputs[f"edge_features_{edge_type_idx}"])
+            edge_features.append(inputs[f"edge_features_{edge_type_idx}"])
 
         # Start the model computations:
         initial_node_features = self.compute_initial_node_features(inputs, training)

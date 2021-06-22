@@ -1,6 +1,17 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Iterator, Tuple, TypeVar, Generic, NamedTuple, Set, Optional
+from typing import (
+    Any,
+    Dict,
+    List,
+    Iterator,
+    Tuple,
+    TypeVar,
+    Generic,
+    NamedTuple,
+    Set,
+    Optional,
+)
 
 import numpy as np
 import tensorflow as tf
@@ -26,11 +37,13 @@ class GraphSample(object):
     def __init__(
         self,
         adjacency_lists: List[np.ndarray],
+        edge_features: List[np.ndarray],
         type_to_node_to_num_inedges: np.ndarray,
         node_features: np.ndarray,
     ):
         super().__init__()
         self._adjacency_lists = adjacency_lists
+        self._edge_features = edge_features
         self._type_to_node_to_num_inedges = type_to_node_to_num_inedges
         self._node_features = node_features
 
@@ -38,6 +51,11 @@ class GraphSample(object):
     def adjacency_lists(self) -> List[np.ndarray]:
         """Adjacency information by edge type as list of ndarrays of shape [E, 2]"""
         return self._adjacency_lists
+
+    @property
+    def edge_features(self) -> List[np.ndarray]:
+        """Edge features of shape [E, edge_feat_dim]. If not present, edge_feat_dim=0."""
+        return self._edge_features
 
     @property
     def type_to_node_to_num_inedges(self) -> np.ndarray:
@@ -70,6 +88,7 @@ class GraphDataset(Generic[GraphSampleType]):
     def get_default_hyperparameters(cls) -> Dict[str, Any]:
         return {
             "max_nodes_per_batch": 10000,
+            "edge_features_dims": {},  # maps (int) edge type to edge feature dim
         }
 
     def __init__(
@@ -105,7 +124,9 @@ class GraphDataset(Generic[GraphSampleType]):
         pass
 
     @abstractmethod
-    def load_data(self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None) -> None:
+    def load_data(
+        self, path: RichPath, folds_to_load: Optional[Set[DataFold]] = None
+    ) -> None:
         pass
 
     @abstractmethod
@@ -155,7 +176,9 @@ class GraphDataset(Generic[GraphSampleType]):
                     means that the k-th edge of type l connects node v to node u.
         """
         graph_sample_iterator = self._graph_iterator(data_fold)
-        for graph_batch in self.graph_batch_iterator_from_graph_iterator(graph_sample_iterator):
+        for graph_batch in self.graph_batch_iterator_from_graph_iterator(
+            graph_sample_iterator
+        ):
             yield graph_batch
 
     def graph_batch_iterator_from_graph_iterator(
@@ -194,12 +217,15 @@ class GraphDataset(Generic[GraphSampleType]):
         return {
             "node_features": [],
             "adjacency_lists": [[] for _ in range(self.num_edge_types)],
+            "edge_features": [[] for _ in range(self.num_edge_types)],
             "node_to_graph_map": [],
             "num_graphs_in_batch": 0,
             "num_nodes_in_batch": 0,
         }
 
-    def _add_graph_to_batch(self, raw_batch: Dict[str, Any], graph_sample: GraphSampleType) -> None:
+    def _add_graph_to_batch(
+        self, raw_batch: Dict[str, Any], graph_sample: GraphSampleType
+    ) -> None:
         """Add a graph sample to a minibatch under preparation.
 
         Args:
@@ -215,13 +241,16 @@ class GraphDataset(Generic[GraphSampleType]):
                 dtype=np.int32,
             )
         )
-        for edge_type_idx, batch_adjacency_list in enumerate(raw_batch["adjacency_lists"]):
-            batch_adjacency_list.append(
-                graph_sample.adjacency_lists[edge_type_idx].reshape(-1, 2)
-                + raw_batch["num_nodes_in_batch"]
+        for edge_type_idx, graph_adj_list in enumerate(graph_sample.adjacency_lists):
+            raw_batch["adjacency_lists"][edge_type_idx].append(
+                graph_adj_list.reshape(-1, 2) + raw_batch["num_nodes_in_batch"]
             )
+        for edge_type_idx, graph_edge_features in enumerate(graph_sample.edge_features):
+            raw_batch["edge_features"][edge_type_idx].append(graph_edge_features)
 
-    def _finalise_batch(self, raw_batch: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def _finalise_batch(
+        self, raw_batch: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Turns a raw batch into a minibatch ready to be fed to the model (i.e., converts
         lists to numpy arrays, and concatenate appropriately.
 
@@ -235,13 +264,25 @@ class GraphDataset(Generic[GraphSampleType]):
         batch_features: Dict[str, Any] = {}
         batch_labels: Dict[str, Any] = {}
         batch_features["node_features"] = np.array(raw_batch["node_features"])
-        batch_features["node_to_graph_map"] = np.concatenate(raw_batch["node_to_graph_map"])
+        batch_features["node_to_graph_map"] = np.concatenate(
+            raw_batch["node_to_graph_map"]
+        )
         batch_features["num_graphs_in_batch"] = raw_batch["num_graphs_in_batch"]
         for i, adjacency_list in enumerate(raw_batch["adjacency_lists"]):
             if len(adjacency_list) > 0:
                 batch_features[f"adjacency_list_{i}"] = np.concatenate(adjacency_list)
             else:
-                batch_features[f"adjacency_list_{i}"] = np.zeros(shape=(0, 2), dtype=np.int32)
+                batch_features[f"adjacency_list_{i}"] = np.zeros(
+                    shape=(0, 2), dtype=np.int32
+                )
+        for i, edge_features in enumerate(raw_batch["edge_features"]):
+            if len(edge_features) > 0:
+                batch_features[f"edge_features_{i}"] = np.concatenate(edge_features)
+            else:
+                batch_features[f"edge_features_{i}"] = np.zeros(
+                    shape=(0, self._params["edge_features_dims"].get(i, 0)),
+                    dtype=np.float32,
+                )
 
         return batch_features, batch_labels
 
@@ -263,6 +304,11 @@ class GraphDataset(Generic[GraphSampleType]):
         for edge_type_idx in range(self.num_edge_types):
             batch_features_types[f"adjacency_list_{edge_type_idx}"] = tf.int32
             batch_features_shapes[f"adjacency_list_{edge_type_idx}"] = (None, 2)
+            batch_features_types[f"edge_features_{edge_type_idx}"] = tf.float32
+            batch_features_shapes[f"edge_features_{edge_type_idx}"] = (
+                None,
+                self._params["edge_features_dims"].get(edge_type_idx, 0),
+            )
         batch_labels_types: Dict[str, Any] = {}
         batch_labels_shapes: Dict[str, Any] = {}
 

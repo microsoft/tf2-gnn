@@ -5,6 +5,7 @@ from .rgin import RGIN
 from .ggnn import GGNN
 from .gnn_edge_mlp import GNN_Edge_MLP
 from .gnn_film import GNN_FiLM
+from .graformer import Graformer
 
 def get_message_passing_class(message_calculation_class_name: str):
     calculation_class = MESSAGE_PASSING_IMPLEMENTATIONS.get(message_calculation_class_name.lower())

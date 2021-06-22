@@ -52,7 +52,9 @@ class GNN(tf.keras.layers.Layer):
     """
 
     @classmethod
-    def get_default_hyperparameters(cls, mp_style: Optional[str] = None) -> Dict[str, Any]:
+    def get_default_hyperparameters(
+        cls, mp_style: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Get the default hyperparameter dictionary for the  class."""
         these_hypers = {
             "message_calculation_class": "rgcn",
@@ -78,11 +80,10 @@ class GNN(tf.keras.layers.Layer):
         message_passing_hypers.update(these_hypers)
         return message_passing_hypers
 
-    def __init__(self, params: Dict[str, Any], use_edge_features: bool = False):
+    def __init__(self, params: Dict[str, Any]):
         """Initialise the layer."""
         super().__init__()
         self._params = params
-        self._use_edge_features = use_edge_features
         self._hidden_dim = params["hidden_dim"]
         self._num_layers = params["num_layers"]
         self._dense_every_num_layers = params["dense_every_num_layers"]
@@ -103,7 +104,9 @@ class GNN(tf.keras.layers.Layer):
                 f"Unknown global_exchange_mode mode {params['global_exchange_mode']} - has to be one of 'mean', 'mlp', 'gru'!"
             )
         self._global_exchange_mode = params["global_exchange_mode"]
-        self._global_exchange_every_num_layers = params["global_exchange_every_num_layers"]
+        self._global_exchange_every_num_layers = params[
+            "global_exchange_every_num_layers"
+        ]
         self._global_exchange_num_heads = params["global_exchange_num_heads"]
         self._global_exchange_dropout_rate = params["global_exchange_dropout_rate"]
 
@@ -126,7 +129,9 @@ class GNN(tf.keras.layers.Layer):
         # First, we go through the input shapes and make sure that anything which might vary batch
         # to batch (number of nodes / number of edges) is set to None.
         initial_node_features_shape: tf.TensorShape = tensor_shapes.node_features
-        variable_node_features_shape = tf.TensorShape((None, initial_node_features_shape[1]))
+        variable_node_features_shape = tf.TensorShape(
+            (None, initial_node_features_shape[1])
+        )
         embedded_shape = tf.TensorShape((None, self._hidden_dim))
 
         with tf.name_scope(f"{self._message_passing_class.__name__}_GNN"):
@@ -144,16 +149,13 @@ class GNN(tf.keras.layers.Layer):
                 with tf.name_scope(f"Layer_{layer_idx}"):
                     with tf.name_scope("MessagePassing"):
                         self._mp_layers.append(
-                            self._message_passing_class(
-                                self._params,
-                                use_edge_features=self._use_edge_features
-                            )
+                            self._message_passing_class(self._params)
                         )
                         self._mp_layers[-1].build(
                             MessagePassingInput(
                                 embedded_shape,
                                 tensor_shapes.adjacency_lists,
-                                tensor_shapes.edge_features
+                                tensor_shapes.edge_features,
                             )
                         )
 
@@ -166,7 +168,7 @@ class GNN(tf.keras.layers.Layer):
                             self._inter_layer_layernorms[-1].build(embedded_shape)
 
                     # Construct the per-node dense layers.
-                    if layer_idx % self._dense_every_num_layers == 0:
+                    if layer_idx and layer_idx % self._dense_every_num_layers == 0:
                         with tf.name_scope(f"Dense"):
                             self._dense_layers[str(layer_idx)] = tf.keras.layers.Dense(
                                 units=self._hidden_dim,
@@ -224,7 +226,9 @@ class GNN(tf.keras.layers.Layer):
         # the unneeded return value if needed.
         internal_call_input_spec = (
             GNNInput(
-                node_features=tf.TensorSpec(shape=variable_node_features_shape, dtype=tf.float32),
+                node_features=tf.TensorSpec(
+                    shape=variable_node_features_shape, dtype=tf.float32
+                ),
                 adjacency_lists=tuple(
                     tf.TensorSpec(shape=(None, 2), dtype=tf.int32)
                     for _ in tensor_shapes.adjacency_lists
@@ -236,11 +240,22 @@ class GNN(tf.keras.layers.Layer):
                 node_to_graph_map=tf.TensorSpec(shape=(None,), dtype=tf.int32),
                 num_graphs=tf.TensorSpec(shape=(), dtype=tf.int32),
             ),
-            tf.TensorSpec(shape=(), dtype=tf.bool)
+            tf.TensorSpec(shape=(), dtype=tf.bool),
         )
-        setattr(self, "_internal_call", tf.function(func=self._internal_call, input_signature=internal_call_input_spec))
+        setattr(
+            self,
+            "_internal_call",
+            tf.function(
+                func=self._internal_call, input_signature=internal_call_input_spec
+            ),
+        )
 
-    def call(self, inputs: GNNInput, training: bool = False, return_all_representations: bool = False):
+    def call(
+        self,
+        inputs: GNNInput,
+        training: bool = False,
+        return_all_representations: bool = False,
+    ):
         """
         Args:
             inputs: A GNNInput containing the following fields:
@@ -278,7 +293,9 @@ class GNN(tf.keras.layers.Layer):
             output of all GNN layers (without dropout, residual connections, dense layers
             or layer norm applied).
         """
-        cur_node_representations, all_node_representations = self._internal_call(inputs, training)
+        cur_node_representations, all_node_representations = self._internal_call(
+            inputs, training
+        )
 
         if return_all_representations:
             return cur_node_representations, all_node_representations
@@ -294,7 +311,8 @@ class GNN(tf.keras.layers.Layer):
         for layer_idx, mp_layer in enumerate(self._mp_layers):
             if training:
                 cur_node_representations = tf.nn.dropout(
-                    cur_node_representations, rate=self._params["layer_input_dropout_rate"]
+                    cur_node_representations,
+                    rate=self._params["layer_input_dropout_rate"],
                 )
 
             # Pass residuals through:
@@ -333,7 +351,7 @@ class GNN(tf.keras.layers.Layer):
                 )
 
             # Apply dense layer, if needed.
-            if layer_idx % self._dense_every_num_layers == 0:
+            if layer_idx and layer_idx % self._dense_every_num_layers == 0:
                 cur_node_representations = self._dense_layers[str(layer_idx)](
                     cur_node_representations, training=training
                 )

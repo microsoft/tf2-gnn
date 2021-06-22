@@ -48,10 +48,9 @@ class MessagePassing(tf.keras.layers.Layer):
             "hidden_dim": 7,
         }
 
-    def __init__(self, params: Dict[str, Any], use_edge_features: bool = False, **kwargs):
+    def __init__(self, params: Dict[str, Any], **kwargs):
         super().__init__(**kwargs)
         self._hidden_dim = int(params["hidden_dim"])
-        self._use_edge_features = use_edge_features
 
         aggregation_fn_name = params["aggregation_function"]
         self._aggregation_fn = get_aggregation_function(aggregation_fn_name)
@@ -213,7 +212,7 @@ class MessagePassing(tf.keras.layers.Layer):
             messages = self._message_function(
                 edge_source_states,
                 edge_target_states,
-                edge_features[edge_type_idx] if self._use_edge_features else None,
+                edge_features[edge_type_idx],
                 num_incoming_to_node_per_message,
                 edge_type_idx,
                 training,

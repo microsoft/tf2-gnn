@@ -4,7 +4,11 @@ from typing import Dict, List, Any, Optional
 import tensorflow as tf
 from dpu_utils.tf2utils import MLP
 
-from .message_passing import MessagePassing, MessagePassingInput, register_message_passing_implementation
+from .message_passing import (
+    MessagePassing,
+    MessagePassingInput,
+    register_message_passing_implementation,
+)
 from tf2_gnn.utils.constants import SMALL_NUMBER
 
 
@@ -69,16 +73,20 @@ class GNN_Edge_MLP(MessagePassing):
         else:
             edge_layer_input_size = input_shapes.node_embeddings[-1]
 
-        # We assume that all edge types have features of the same dim, if they are present:
-        if self._use_edge_features:
-            edge_layer_input_size += input_shapes.edge_features[0][-1]
-
         for i in range(num_edge_types):
             with tf.name_scope(f"edge_type_{i}"):
                 mlp = MLP(
-                    out_size=self._hidden_dim, hidden_layers=self._num_edge_MLP_hidden_layers
+                    out_size=self._hidden_dim,
+                    hidden_layers=self._num_edge_MLP_hidden_layers,
                 )
-                mlp.build(tf.TensorShape((None, edge_layer_input_size)))
+                mlp.build(
+                    tf.TensorShape(
+                        (
+                            None,
+                            edge_layer_input_size + input_shapes.edge_features[i][-1],
+                        )
+                    )
+                )
             self._edge_type_mlps.append(mlp)
 
         super().build(input_shapes)
@@ -99,15 +107,16 @@ class GNN_Edge_MLP(MessagePassing):
         else:
             edge_mlp_inputs = edge_source_states
 
-        if self._use_edge_features:
-            edge_mlp_inputs = tf.concat([edge_mlp_inputs, edge_features], axis=-1)
+        edge_mlp_inputs = tf.concat([edge_mlp_inputs, edge_features], axis=-1)
 
         # Actually do the message calculation:
         messages = self._edge_type_mlps[edge_type_idx](edge_mlp_inputs, training)
 
         if self._normalize_by_num_incoming:
             messages = (
-                tf.expand_dims(1.0 / (num_incoming_to_node_per_message + SMALL_NUMBER), axis=-1)
+                tf.expand_dims(
+                    1.0 / (num_incoming_to_node_per_message + SMALL_NUMBER), axis=-1
+                )
                 * messages
             )
         return messages

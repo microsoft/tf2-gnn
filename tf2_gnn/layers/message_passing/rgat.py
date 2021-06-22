@@ -4,7 +4,11 @@ from typing import Dict, List, Tuple, Any, Optional
 import tensorflow as tf
 from dpu_utils.tf2utils import unsorted_segment_log_softmax
 
-from .message_passing import MessagePassing, MessagePassingInput, register_message_passing_implementation
+from .message_passing import (
+    MessagePassing,
+    MessagePassingInput,
+    register_message_passing_implementation,
+)
 
 
 @register_message_passing_implementation
@@ -70,15 +74,21 @@ class RGAT(MessagePassing):
         per_head_dim = self._hidden_dim // self._num_heads
 
         message_layer_input_size = input_shapes.node_embeddings[-1]
-        if self._use_edge_features:
-            message_layer_input_size += input_shapes.edge_features[-1]
 
         for i in range(num_edge_types):
             with tf.name_scope(f"edge_type_{i}"):
                 mp_layer = tf.keras.layers.Dense(
                     self._hidden_dim, use_bias=False, name="Edge_weight_{}".format(i)
                 )
-                mp_layer.build(tf.TensorShape((None, message_layer_input_size)))
+                mp_layer.build(
+                    tf.TensorShape(
+                        (
+                            None,
+                            message_layer_input_size
+                            + input_shapes.edge_features[i][-1],
+                        )
+                    )
+                )
                 self._edge_type_to_message_computation_layer.append(mp_layer)
 
                 attention_weights = self.add_weight(
@@ -101,22 +111,26 @@ class RGAT(MessagePassing):
     ) -> tf.Tensor:
         per_head_dim = self._hidden_dim // self._num_heads
 
-        if self._use_edge_features:
-            edge_source_states = tf.concat([edge_source_states, edge_features], axis=-1)
-            edge_target_states = tf.concat([edge_target_states, edge_features], axis=-1)
+        edge_source_states = tf.concat([edge_source_states, edge_features], axis=-1)
+        edge_target_states = tf.concat([edge_target_states, edge_features], axis=-1)
 
         # Actually do the message calculation:
         per_head_transformed_source_states = tf.reshape(
-            self._edge_type_to_message_computation_layer[edge_type_idx](edge_source_states),
+            self._edge_type_to_message_computation_layer[edge_type_idx](
+                edge_source_states
+            ),
             shape=(-1, self._num_heads, per_head_dim),
         )  # Shape [E, K, H/K]
         per_head_transformed_target_states = tf.reshape(
-            self._edge_type_to_message_computation_layer[edge_type_idx](edge_target_states),
+            self._edge_type_to_message_computation_layer[edge_type_idx](
+                edge_target_states
+            ),
             shape=(-1, self._num_heads, per_head_dim),
         )  # Shape [E, K, H/K]
 
         per_head_transformed_states = tf.concat(
-            [per_head_transformed_source_states, per_head_transformed_target_states], axis=-1
+            [per_head_transformed_source_states, per_head_transformed_target_states],
+            axis=-1,
         )  # Shape [E, K, 2*H/K]
 
         per_head_attention_scores = tf.nn.leaky_relu(
@@ -137,9 +151,13 @@ class RGAT(MessagePassing):
         num_nodes: tf.Tensor,
         training: bool,
     ):
-        per_head_messages_per_type, per_head_attention_scores_per_type = zip(*messages_per_type)
+        per_head_messages_per_type, per_head_attention_scores_per_type = zip(
+            *messages_per_type
+        )
 
-        per_head_messages = tf.concat(per_head_messages_per_type, axis=0)  # Shape [M, K, H/K]
+        per_head_messages = tf.concat(
+            per_head_messages_per_type, axis=0
+        )  # Shape [M, K, H/K]
         per_head_attention_scores = tf.concat(
             per_head_attention_scores_per_type, axis=0
         )  # Shape [M, K]
@@ -153,7 +171,9 @@ class RGAT(MessagePassing):
             )  # Shape [M]
             attention_values = tf.exp(
                 unsorted_segment_log_softmax(
-                    logits=attention_scores, segment_ids=message_targets, num_segments=num_nodes
+                    logits=attention_scores,
+                    segment_ids=message_targets,
+                    num_segments=num_nodes,
                 )
             )  # Shape [M]
             messages = per_head_messages[:, head_idx, :]  # Shape [M, H/K]
@@ -166,7 +186,9 @@ class RGAT(MessagePassing):
                 )
             )
 
-        aggregated_messages = tf.concat(head_to_aggregated_messages, axis=-1)  # Shape [V, H]
+        aggregated_messages = tf.concat(
+            head_to_aggregated_messages, axis=-1
+        )  # Shape [V, H]
         return self._activation_fn(aggregated_messages)
 
 
