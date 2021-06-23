@@ -71,7 +71,8 @@ class Graformer(tf.keras.layers.Layer):
             "num_heads": 4,
             "msg_dim": 5,
             "keyquery_dim": 3,
-            "post_mp_dropout_rate": 0.2,
+            "dropout_rate": 0.2,
+            "use_ff_sublayer": True,
             "rezero_mode": "vector",  # one of ["off", "scalar", "vector"], see https://arxiv.org/pdf/2003.04887.pdf and https://arxiv.org/pdf/2103.17239.pdf.
         }
 
@@ -85,7 +86,8 @@ class Graformer(tf.keras.layers.Layer):
         self._num_heads = params["num_heads"]
         self._msg_dim = params["msg_dim"]
         self._keyquery_dim = params["keyquery_dim"]
-        self._post_mp_dropout_rate = params["post_mp_dropout_rate"]
+        self._dropout_rate = params["dropout_rate"]
+        self._use_ff_sublayer = params["use_ff_sublayer"]
         self._rezero_mode = params["rezero_mode"]
 
     def build(self, input_shapes: MessagePassingInput):
@@ -151,9 +153,7 @@ class Graformer(tf.keras.layers.Layer):
             self._pre_mp_norm.build(tf.TensorShape((None, self._hidden_dim)))
 
         with tf.name_scope("post_mp"):
-            self._post_mp_dropout = tf.keras.layers.Dropout(
-                rate=self._post_mp_dropout_rate
-            )
+            self._post_mp_dropout = tf.keras.layers.Dropout(rate=self._dropout_rate)
             self._post_mp_dropout.build(tf.TensorShape((None, self._hidden_dim)))
 
         with tf.name_scope("rezero_parameters"):
@@ -169,6 +169,42 @@ class Graformer(tf.keras.layers.Layer):
                 )
             else:
                 raise ValueError(f"Unrecognized rezero mode `{self._rezero_mode}`.")
+
+        if self._use_ff_sublayer:
+            with tf.name_scope("ff_sublayer"):
+                with tf.name_scope("pre_norm"):
+                    self._pre_ff_norm = tf.keras.layers.LayerNormalization()
+                    self._pre_ff_norm.build(tf.TensorShape((None, self._hidden_dim)))
+                with tf.name_scope("ff_layer1"):
+                    self._ff_layer1 = tf.keras.layers.Dense(
+                        units=2 * self._hidden_dim,
+                        use_bias=False,
+                        activation=self._activation_fn,
+                    )
+                    self._ff_layer1.build(tf.TensorShape((None, self._hidden_dim)))
+                with tf.name_scope("ff_layer2"):
+                    self._ff_layer2 = tf.keras.layers.Dense(
+                        units=self._hidden_dim, use_bias=False, activation=None
+                    )
+                    self._ff_layer2.build(tf.TensorShape((None, 2 * self._hidden_dim)))
+                self._post_ff_dropout = tf.keras.layers.Dropout(rate=self._dropout_rate)
+                self._post_ff_dropout.build(tf.TensorShape((None, self._hidden_dim)))
+
+                with tf.name_scope("rezero_parameters"):
+                    if self._rezero_mode == "off":
+                        self._post_ff_rezero_scaler: Union[float, tf.Tensor] = 1.0
+                    elif self._rezero_mode == "scalar":
+                        self._post_ff_rezero_scaler = self.add_weight(
+                            name="rezero_scaler", shape=(1,), initializer="zeros"
+                        )
+                    elif self._rezero_mode == "vector":
+                        self._post_ff_rezero_scaler = self.add_weight(
+                            name="rezero_scaler",
+                            shape=(self._hidden_dim,),
+                            initializer="zeros",
+                        )
+                    else:
+                        raise ValueError(f"Unrecognized rezero mode `{self._rezero_mode}`.")
 
         super().build(input_shapes)
 
@@ -207,7 +243,7 @@ class Graformer(tf.keras.layers.Layer):
                     2 * self._keyquery_dim + self._msg_dim,
                 ),
             ),
-            num_or_size_splits=[self._keyquery_dim, self._keyquery_dim, self._msg_dim,],
+            num_or_size_splits=[self._keyquery_dim, self._keyquery_dim, self._msg_dim],
             axis=-1,
         )  # each of shape [V, L, num_heads, keyquery_dim/msg_dim]
 
@@ -303,11 +339,20 @@ class Graformer(tf.keras.layers.Layer):
             + self._rezero_scaler * self._post_mp_dropout(proj_aggregated_messages)
         )
 
+        if self._use_ff_sublayer:
+            ff_input = self._pre_ff_norm(new_node_states)
+            ff_output = self._post_ff_dropout(
+                self._ff_layer2(self._ff_layer1(ff_input))
+            )
+            new_node_states = new_node_states + self._post_ff_rezero_scaler * ff_output
+
         return new_node_states
 
 
 if __name__ == "__main__":
-    import doctest, pdb, traceback, sys
+    import doctest
+    import pdb
+    import traceback
 
     try:
         doctest.testmod(raise_on_error=True, optionflags=doctest.ELLIPSIS)
