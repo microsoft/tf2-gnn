@@ -68,6 +68,7 @@ class GNN(tf.keras.layers.Layer):
             "layer_input_dropout_rate": 0.0,
             "global_exchange_mode": "gru",  # One of "mean", "mlp", "gru"
             "global_exchange_every_num_layers": 2,
+            "global_exchange_weighting_fun": "softmax",  # One of "softmax", "sigmoid"
             "global_exchange_num_heads": 4,
             "global_exchange_dropout_rate": 0.2,
         }  # type: Dict[str, Any]
@@ -104,6 +105,7 @@ class GNN(tf.keras.layers.Layer):
                 f"Unknown global_exchange_mode mode {params['global_exchange_mode']} - has to be one of 'mean', 'mlp', 'gru'!"
             )
         self._global_exchange_mode = params["global_exchange_mode"]
+        self._global_exchange_weighting_fun = params["global_exchange_weighting_fun"]
         self._global_exchange_every_num_layers = params[
             "global_exchange_every_num_layers"
         ]
@@ -190,6 +192,7 @@ class GNN(tf.keras.layers.Layer):
                                 exchange_layer_class = GraphGlobalMLPExchange
                             exchange_layer = exchange_layer_class(
                                 hidden_dim=self._hidden_dim,
+                                weighting_fun=self._global_exchange_weighting_fun,
                                 num_heads=self._global_exchange_num_heads,
                                 dropout_rate=self._global_exchange_dropout_rate,
                             )

@@ -4,7 +4,7 @@ from typing import NamedTuple
 import tensorflow as tf
 from dpu_utils.tf2utils import MLP
 
-from tf2_gnn.layers import WASGraphRepresentation, NodesToGraphRepresentationInput
+from tf2_gnn.layers import WeightedSumGraphRepresentation, WASGraphRepresentation, NodesToGraphRepresentationInput
 
 from tf2_gnn.utils.gather_dense_gradient import gather_dense_gradient
 
@@ -23,12 +23,14 @@ class GraphGlobalExchange(tf.keras.layers.Layer):
     def __init__(
         self,
         hidden_dim: int,
-        num_heads: int = 8,
+        weighting_fun: str = "softmax",
+        num_heads: int = 4,
         dropout_rate: float = 0.0,
     ):
         """Initialise the layer."""
         super().__init__()
         self._hidden_dim = hidden_dim
+        self._weighting_fun = weighting_fun
         self._num_heads = num_heads
         self._dropout_rate = dropout_rate
 
@@ -41,11 +43,19 @@ class GraphGlobalExchange(tf.keras.layers.Layer):
         Returns:
             Nothing, but initialises the layers in the model based on the tensor shapes given.
         """
-        self._node_to_graph_representation_layer = WASGraphRepresentation(
-            graph_representation_size=self._hidden_dim,
-            num_heads=self._num_heads,
-            pooling_mlp_layers=[self._hidden_dim, self._hidden_dim],
-        )
+        if self._weighting_fun == "wasg":
+            self._node_to_graph_representation_layer = WASGraphRepresentation(
+                graph_representation_size=self._hidden_dim,
+                num_heads=self._num_heads,
+                pooling_mlp_layers=[self._hidden_dim, self._hidden_dim],
+            )
+        else:
+            self._node_to_graph_representation_layer = WeightedSumGraphRepresentation(
+                graph_representation_size=self._hidden_dim,
+                weighting_fun=self._weighting_fun,
+                num_heads=self._num_heads,
+                scoring_mlp_layers=[self._hidden_dim],
+            )
         self._node_to_graph_representation_layer.build(
             NodesToGraphRepresentationInput(
                 node_embeddings=tensor_shapes.node_embeddings,
@@ -105,11 +115,12 @@ class GraphGlobalMeanExchange(GraphGlobalExchange):
     def __init__(
         self,
         hidden_dim: int,
-        num_heads: int = 8,
+        weighting_fun: str = "softmax",
+        num_heads: int = 4,
         dropout_rate: float = 0.0,
     ):
         """Initialise the layer."""
-        super().__init__(hidden_dim, num_heads, dropout_rate)
+        super().__init__(hidden_dim, weighting_fun, num_heads, dropout_rate)
 
     def build(self, tensor_shapes: GraphGlobalExchangeInput):
         with tf.name_scope(self.__class__.__name__):
@@ -126,11 +137,12 @@ class GraphGlobalGRUExchange(GraphGlobalExchange):
     def __init__(
         self,
         hidden_dim: int,
-        num_heads: int = 8,
+        weighting_fun: str = "softmax",
+        num_heads: int = 4,
         dropout_rate: float = 0.0,
     ):
         """Initialise the layer."""
-        super().__init__(hidden_dim, num_heads, dropout_rate)
+        super().__init__(hidden_dim, weighting_fun, num_heads, dropout_rate)
 
     def build(self, tensor_shapes: GraphGlobalExchangeInput):
         with tf.name_scope(self.__class__.__name__):
@@ -154,15 +166,16 @@ class GraphGlobalMLPExchange(GraphGlobalExchange):
     def __init__(
         self,
         hidden_dim: int,
-        num_heads: int = 8,
+        weighting_fun: str = "softmax",
+        num_heads: int = 4,
         dropout_rate: float = 0.0,
     ):
         """Initialise the layer."""
-        super().__init__(hidden_dim, num_heads, dropout_rate)
+        super().__init__(hidden_dim, weighting_fun, num_heads, dropout_rate)
 
     def build(self, tensor_shapes: GraphGlobalExchangeInput):
         with tf.name_scope(self.__class__.__name__):
-            self._mlp = MLP(hidden_layers=[4 * self._hidden_dim], out_size=self._hidden_dim)
+            self._mlp = MLP(out_size=self._hidden_dim)
             self._mlp.build(tf.TensorShape((None, 2 * self._hidden_dim)))
             super().build(tensor_shapes)
 
@@ -174,5 +187,4 @@ class GraphGlobalMLPExchange(GraphGlobalExchange):
             tf.concat([per_node_graph_representations, inputs.node_embeddings], axis=-1),
             training=training,
         )
-        cur_node_representations = (inputs.node_embeddings + cur_node_representations) / 2
         return cur_node_representations
