@@ -100,6 +100,20 @@ class GNN(tf.keras.layers.Layer):
             params["message_calculation_class"]
         )
 
+        if self._message_passing_class.__name__.lower() == "graformer":
+            assert (
+                params["dense_every_num_layers"] > params["num_layers"]
+            ), "Graformer has built-in dense layers. Use `use_ff_sublayer` flag to control."
+            assert not params[
+                "use_inter_layer_layernorm"
+            ], "Graformer has built-in, required LayerNorm."
+            assert (
+                params["residual_every_num_layers"] > params["num_layers"]
+            ), "Graformer has built-in, required residual connections."
+            assert (
+                params["global_exchange_every_num_layers"] > params["num_layers"]
+            ), "Graformer uses global attention. Use dataset to add `NOEDGE` edges."
+
         if not params["global_exchange_mode"].lower() in {"mean", "mlp", "gru"}:
             raise ValueError(
                 f"Unknown global_exchange_mode mode {params['global_exchange_mode']} - has to be one of 'mean', 'mlp', 'gru'!"
@@ -170,7 +184,11 @@ class GNN(tf.keras.layers.Layer):
                             self._inter_layer_layernorms[-1].build(embedded_shape)
 
                     # Construct the per-node dense layers.
-                    if layer_idx and layer_idx % self._dense_every_num_layers == 0:
+                    # The weird condition is required for backwards-compatibility:
+                    if (
+                        layer_idx % self._dense_every_num_layers == 0
+                        and self._message_passing_class.__name__.lower() != "graformer"
+                    ):
                         with tf.name_scope(f"Dense"):
                             self._dense_layers[str(layer_idx)] = tf.keras.layers.Dense(
                                 units=self._hidden_dim,
@@ -180,8 +198,8 @@ class GNN(tf.keras.layers.Layer):
                             self._dense_layers[str(layer_idx)].build(embedded_shape)
 
                     if (
-                        layer_idx
-                        and layer_idx % self._global_exchange_every_num_layers == 0
+                        layer_idx % self._global_exchange_every_num_layers == 0
+                        and self._message_passing_class.__name__.lower() != "graformer"
                     ):
                         with tf.name_scope(f"Global_Exchange"):
                             if self._global_exchange_mode.lower() == "mean":
@@ -354,7 +372,10 @@ class GNN(tf.keras.layers.Layer):
                 )
 
             # Apply dense layer, if needed.
-            if layer_idx and layer_idx % self._dense_every_num_layers == 0:
+            if (
+                layer_idx % self._dense_every_num_layers == 0
+                and self._message_passing_class.__name__.lower() != "graformer"
+            ):
                 cur_node_representations = self._dense_layers[str(layer_idx)](
                     cur_node_representations, training=training
                 )
