@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import (
     Any,
@@ -30,42 +31,20 @@ class GraphBatchTFDataDescription(NamedTuple):
     batch_labels_types: Dict[str, Any]
     batch_labels_shapes: Dict[str, Any]
 
-
+@dataclass
 class GraphSample(object):
-    """Data structure holding information for a single graph."""
-
-    def __init__(
-        self,
-        adjacency_lists: List[np.ndarray],
-        edge_features: List[np.ndarray],
-        type_to_node_to_num_inedges: np.ndarray,
-        node_features: np.ndarray,
-    ):
-        super().__init__()
-        self._adjacency_lists = adjacency_lists
-        self._edge_features = edge_features
-        self._type_to_node_to_num_inedges = type_to_node_to_num_inedges
-        self._node_features = node_features
-
-    @property
-    def adjacency_lists(self) -> List[np.ndarray]:
-        """Adjacency information by edge type as list of ndarrays of shape [E, 2]"""
-        return self._adjacency_lists
-
-    @property
-    def edge_features(self) -> List[np.ndarray]:
-        """Edge features of shape [E, edge_feat_dim]. If not present, edge_feat_dim=0."""
-        return self._edge_features
-
-    @property
-    def type_to_node_to_num_inedges(self) -> np.ndarray:
-        """Number of incoming edge by edge type as ndarray of shape [V]"""
-        return self._type_to_node_to_num_inedges
-
-    @property
-    def node_features(self) -> np.ndarray:
-        """Initial node features as ndarray of shape [V, ...]"""
-        return self._node_features
+    """Data structure holding information for a single graph.
+    Args:
+        adjacency_lists: Adjacency information by edge type as list of ndarrays of shape [E, 2]
+        type_to_node_to_num_inedges: Number of incoming edge by edge type as ndarray of shape [V]
+        node_features: Initial node features as ndarray of shape [V, ...]
+        edge_features: Edge features by edge type as list of ndarrays of shape [E, edge_feat_dim].
+            If not present, all edge_feat_dim=0.
+    """
+    adjacency_lists: List[np.ndarray]
+    type_to_node_to_num_inedges: np.ndarray
+    node_features: np.ndarray
+    edge_features: Optional[List[np.ndarray]] = None
 
 
 GraphSampleType = TypeVar("GraphSampleType", bound=GraphSample)
@@ -245,8 +224,9 @@ class GraphDataset(Generic[GraphSampleType]):
             raw_batch["adjacency_lists"][edge_type_idx].append(
                 graph_adj_list.reshape(-1, 2) + raw_batch["num_nodes_in_batch"]
             )
-        for edge_type_idx, graph_edge_features in enumerate(graph_sample.edge_features):
-            raw_batch["edge_features"][edge_type_idx].append(graph_edge_features)
+        if graph_sample.edge_features is not None:
+            for edge_type_idx, graph_edge_features in enumerate(graph_sample.edge_features):
+                raw_batch["edge_features"][edge_type_idx].append(graph_edge_features)
 
     def _finalise_batch(
         self, raw_batch: Dict[str, Any]
@@ -279,8 +259,9 @@ class GraphDataset(Generic[GraphSampleType]):
             if len(edge_features) > 0:
                 batch_features[f"edge_features_{i}"] = np.concatenate(edge_features)
             else:
+                num_edges = batch_features[f"adjacency_list_{i}"].shape[0]
                 batch_features[f"edge_features_{i}"] = np.zeros(
-                    shape=(0, self._params["edge_features_dims"].get(i, 0)),
+                    shape=(num_edges, self._params["edge_features_dims"].get(i, 0)),
                     dtype=np.float32,
                 )
 
