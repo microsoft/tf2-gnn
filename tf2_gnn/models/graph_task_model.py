@@ -373,7 +373,9 @@ class GraphTaskModel(tf.keras.Model):
         total_loss = tf.constant(0, dtype=tf.float32)
         for step, (batch_features, batch_labels) in enumerate(dataset):
             task_metrics = self._run_step(batch_features, batch_labels, training)
-            total_loss += task_metrics["loss"]
+            # task_metrics["loss"] is batch average loss over graphs
+            # (loss per graph from self.compute_task_metrics())
+            total_loss += task_metrics["loss"] * batch_features["num_graphs_in_batch"]
             total_num_graphs += batch_features["num_graphs_in_batch"]
             task_results.append(task_metrics)
 
@@ -381,9 +383,7 @@ class GraphTaskModel(tf.keras.Model):
                 epoch_graph_average_loss = (
                     total_loss / float(total_num_graphs)
                 ).numpy()
-                batch_graph_average_loss = task_metrics["loss"] / float(
-                    batch_features["num_graphs_in_batch"]
-                )
+                batch_graph_average_loss = task_metrics["loss"] 
                 steps_per_second = step / (time.time() - epoch_time_start)
                 print(
                     f"   Step: {step:4d}"
