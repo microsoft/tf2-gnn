@@ -206,8 +206,8 @@ used in tools such as `tf2_gnn_train`.
 # Authors
 
 * [Henry Jackson-Flux](mailto:Henry.JacksonFlux@microsoft.com)
-* [Marc Brockschmidt](mailto:Marc.Brockschmidt@microsoft.com)
-* [Megan Stanley](mailto:t-mestan@microsoft.com)
+* [Marc Brockschmidt](mailto:mabrocks@microsoft.com)
+* [Megan Stanley](mailto:meganstanley@microsoft.com)
 * [Pashmina Cameron](mailto:Pashmina.Cameron@microsoft.com)
 
 
