@@ -24,6 +24,7 @@ setuptools.setup(
         "tensorflow>=2.0.0",
         "dpu-utils>=0.2.7",
         "h5py",
+        "packaging",
     ],
     packages=setuptools.find_packages(where="."),
     package_dir={"": "."},
