@@ -7,8 +7,14 @@ from typing import Dict, Optional, Callable, Any
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.training.tracking import data_structures as tf_data_structures
 from dpu_utils.utils import RichPath
+from packaging.version import parse as parse_version
+
+# Recent versions of `tensorflow` have moved the `data_structures` module.
+if parse_version(tf.__version__) >= parse_version("2.10"):
+    from tensorflow.python.trackable import data_structures as tf_data_structures
+else:
+    from tensorflow.python.training.tracking import data_structures as tf_data_structures
 
 from ..data import DataFold, GraphDataset
 from ..layers import get_known_message_passing_classes
