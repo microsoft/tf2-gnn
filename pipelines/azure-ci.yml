@@ -17,12 +17,12 @@ jobs:
 
   strategy:
     matrix:
-      Python36:
-        python.version: '3.6'
       Python37:
         python.version: '3.7'
       Python38:
         python.version: '3.8'
+      Python39:
+        python.version: '3.9'
     maxParallel: 4
 
   steps:
@@ -54,8 +54,8 @@ jobs:
   steps:
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: '3.6'
-    displayName: 'Set python version to 3.6'
+      versionSpec: '3.7'
+    displayName: 'Set python version to 3.7'
 
   - task: ComponentGovernanceComponentDetection@0
     inputs:

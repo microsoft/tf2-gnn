@@ -10,7 +10,7 @@ with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
 
 setuptools.setup(
     name="tf2_gnn",
-    version="2.13.0",
+    version="2.14.0",
     license="MIT",
     author="Marc Brockschmidt",
     author_email="mabrocks@microsoft.com",
@@ -24,6 +24,7 @@ setuptools.setup(
         "tensorflow>=2.0.0",
         "dpu-utils>=0.2.7",
         "h5py",
+        "packaging",
     ],
     packages=setuptools.find_packages(where="."),
     package_dir={"": "."},

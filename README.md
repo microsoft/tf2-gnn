@@ -4,6 +4,12 @@ Implementation and example training scripts of various flavours of graph neural 
 TensorFlow 2.0.
 Much of it is based on the code in the [tf-gnn-samples](https://github.com/microsoft/tf-gnn-samples) repo.
 
+The code is maintained by the [AI4Science team](https://www.microsoft.com/en-us/research/lab/microsoft-research-ai4science/)
+at Microsoft Research.
+We are [hiring](https://www.microsoft.com/en-us/research/lab/microsoft-research-ai4science/opportunities/?#).
+
+Currently this package is not under active developement, but it does continue to be used as a backend for [our generative model of molecules](https://github.com/microsoft/molecule-generation).
+
 ## Installation
 You can install the `tf2_gnn` module from the Python Package Index using 
 `pip install tf2_gnn`.
@@ -13,12 +19,7 @@ navigate to it and run `pip install -e ./` to install it as a local editable pac
 
 You will then be able to use the `tf2_gnn.layers.GNN` class and related utilities.
 
-This code was tested in Python 3.6 and 3.7 with TensorFlow 2.0 and 2.1.
-
-The code is maintained by the [All Data AI](https://www.microsoft.com/en-us/research/group/ada/)
-group at Microsoft Research, Cambridge, UK.
-We are [hiring](https://www.microsoft.com/en-us/research/theme/ada/#!opportunities).
-
+This code was tested in Python 3.7, 3.8 and 3.9.
 
 ## Testing the Installation
 
@@ -205,10 +206,11 @@ used in tools such as `tf2_gnn_train`.
 
 # Authors
 
-* [Henry Jackson-Flux](mailto:Henry.JacksonFlux@microsoft.com)
-* [Marc Brockschmidt](mailto:Marc.Brockschmidt@microsoft.com)
-* [Megan Stanley](mailto:t-mestan@microsoft.com)
-* [Pashmina Cameron](mailto:Pashmina.Cameron@microsoft.com)
+* Henry Jackson-Flux
+* Marc Brockschmidt
+* [Megan Stanley](mailto:meganstanley@microsoft.com)
+* Pashmina Cameron
+* [Krzysztof Maziarz](mailto:krzysztof.maziarz@microsoft.com)
 
 
 # References
