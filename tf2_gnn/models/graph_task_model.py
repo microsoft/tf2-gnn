@@ -40,6 +40,15 @@ class GraphTaskModel(tf.keras.Model):
     ):
         super().__init__(name=name)
         self._params = params
+
+        # Check that dataset and params agree with each other for Transformer layers:
+        if params["gnn_transformer_every_num_layers"] < params["gnn_num_layers"]:
+            if not dataset.params["include_adjacency_list_for_dense_graphs"]:
+                raise ValueError(
+                    "Using Transformer layers in GNN requires to set the "
+                    "'include_adjacency_list_for_dense_graphs' option on the dataset."
+                )
+
         self._num_edge_types = dataset.num_edge_types
         self._use_intermediate_gnn_results = params.get(
             "use_intermediate_gnn_results", False
@@ -102,6 +111,7 @@ class GraphTaskModel(tf.keras.Model):
                     input_shapes[f"adjacency_list_{edge_type_idx}"]
                     for edge_type_idx in range(self._num_edge_types)
                 ),
+                adjacency_list_for_dense_graphs=tf.TensorShape((None, 2)),
                 node_to_graph_map=tf.TensorShape((None,)),
                 num_graphs=tf.TensorShape(()),
             )
@@ -167,6 +177,7 @@ class GraphTaskModel(tf.keras.Model):
         gnn_input = GNNInput(
             node_features=initial_node_features,
             adjacency_lists=adjacency_lists,
+            adjacency_list_for_dense_graphs=inputs["adjacency_list_for_dense_graphs"],
             node_to_graph_map=inputs["node_to_graph_map"],
             num_graphs=inputs["num_graphs_in_batch"],
         )
